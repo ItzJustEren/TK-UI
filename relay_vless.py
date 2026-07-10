@@ -23,7 +23,11 @@ from main import (
     now_ir,
 )
 
-RELAY_BUF = 256 * 1024
+# ══════════════════════════════════════════════════════════════════════════════
+# VLESS Relay — بهینه‌شده برای حداکثر throughput
+# ══════════════════════════════════════════════════════════════════════════════
+
+RELAY_BUF = 256 * 1024   # 256 KB buffer
 
 def _ws_client_ip(ws: WebSocket) -> str:
     fwd = ws.headers.get("x-forwarded-for")
