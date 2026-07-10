@@ -192,14 +192,12 @@ def generate_uuid() -> str:
 def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
 
-def generate_link_label() -> str:
-    """تولید نام خودکار برای کانفیگ‌های جدید (TK-UI, TK-UI-1, ...)"""
+async def generate_link_label() -> str:
+    """تولید نام خودکار برای کانفیگ‌های جدید (TK-UI, TK-UI-1, ...) - اصلاح‌شده به async"""
     async with LINKS_LOCK:
-        # شمارش کانفیگ‌هایی که با TK-UI شروع می‌شوند (به‌جز پیش‌فرض)
         existing = [l for l in LINKS.values() if l.get("label", "").startswith("TK-UI")]
     if not existing:
         return "TK-UI"
-    # پیدا کردن بزرگترین عدد پسوند
     max_num = 0
     for l in existing:
         label = l.get("label", "")
@@ -688,7 +686,7 @@ async def create_link(request: Request, _=Depends(require_auth)):
     body = await request.json()
     label = (body.get("label") or "").strip()
     if not label:
-        label = generate_link_label()
+        label = await generate_link_label()  # اصلاح: await اضافه شد
     else:
         label = label[:60]
     lv = float(body.get("limit_value") or 0)
