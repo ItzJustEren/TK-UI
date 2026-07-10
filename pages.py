@@ -669,7 +669,7 @@ DASHBOARD_HTML = DASHBOARD_HTML.replace("__LOGO_B64__", LOGO_B64)
 
 def get_public_page_html(uuid_key: str) -> str:
     """صفحه پابلیک ساب v3 — با تم مشکی-نارنجی و برندینگ TK-Ui"""
-    return f"""<!DOCTYPE html>
+    return r"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -678,7 +678,7 @@ def get_public_page_html(uuid_key: str) -> str:
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
-*{{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{{
   --bg:#0a0a0a;--bg2:#111;--bg3:#1a1a1a;
   --card:#141414;--card-b:rgba(255,107,0,0.15);--card-bh:rgba(255,107,0,0.35);
@@ -702,125 +702,125 @@ def get_public_page_html(uuid_key: str) -> str:
   --t1:#1a1a1a;--t2:#555;--t3:#888;
   --shadow:0 12px 36px rgba(20,40,90,0.08);
 }}
-html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:var(--t1);font-size:14px;transition:background .35s,color .35s}}
-.bg-fx{{position:fixed;inset:0;background:radial-gradient(ellipse 70% 45% at 50% -8%,rgba(255,107,0,0.13),transparent 62%),var(--bg);z-index:0;pointer-events:none;transition:background .35s}}
-.grid-fx{{position:fixed;inset:0;background-image:linear-gradient(rgba(255,107,0,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,107,0,0.025) 1px,transparent 1px);background-size:46px 46px;z-index:0;pointer-events:none}}
-.wrap{{position:relative;z-index:10;max-width:800px;margin:0 auto;padding:24px 16px 64px}}
-.top{{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;gap:10px}}
-.brand{{display:flex;align-items:center;gap:11px;min-width:0}}
-.brand-img{{width:40px;height:40px;border-radius:50%;overflow:hidden;border:1px solid var(--card-b);box-shadow:0 0 14px rgba(255,107,0,.3),0 0 8px rgba(255,107,0,.25);flex-shrink:0}}
-.brand-img img{{width:100%;height:100%;object-fit:cover}}
-.brand-name{{font-size:14.5px;font-weight:800;color:var(--t1);letter-spacing:-.01em}}
-.brand-sub{{font-size:9.5px;color:var(--t3);font-weight:500}}
-.top-actions{{display:flex;align-items:center;gap:6px;flex-shrink:0}}
-.icon-btn{{width:36px;height:36px;border-radius:11px;background:var(--card);border:1px solid var(--card-b);color:var(--t2);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:.18s}}
-.icon-btn:hover{{background:var(--accent-d);color:var(--accent2);border-color:var(--card-bh)}}
-.sub-info{{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:24px 24px 22px;margin-bottom:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}}
-.sub-info::before{{content:'';position:absolute;top:0;right:0;width:160px;height:160px;background:radial-gradient(circle at top right,rgba(255,107,0,.1),transparent 70%);pointer-events:none}}
-.sub-eyebrow{{font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;display:flex;align-items:center;gap:6px}}
-.sub-eyebrow i{{font-size:13px}}
-.sub-name{{font-size:23px;font-weight:800;color:var(--t1);margin-bottom:6px;letter-spacing:-.02em}}
-.sub-desc{{font-size:12.5px;color:var(--t2);line-height:1.8;margin-bottom:14px}}
-.sub-meta-row{{font-size:10.5px;color:var(--t3);margin-bottom:14px;display:flex;align-items:center;gap:6px}}
-.sub-sub-box{{background:var(--accent-d);border:1px solid var(--card-b);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}}
-.sub-sub-url{{font-family:ui-monospace,monospace;font-size:10px;color:var(--accent2);word-break:break-all;flex:1;min-width:140px}}
-.stats-bar{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}}
-.stat-card{{background:var(--card);border:1px solid var(--card-b);border-radius:16px;padding:16px 17px;transition:.2s}}
-.stat-card:hover{{border-color:var(--card-bh);transform:translateY(-1px)}}
-.stat-label{{font-size:9px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}}
-.stat-val{{font-size:22px;font-weight:800;color:var(--t1);line-height:1;letter-spacing:-.01em}}
-.stat-sub{{font-size:9.5px;color:var(--t3);margin-top:6px}}
-.copy-all-bar{{display:flex;align-items:center;gap:12px;background:linear-gradient(120deg,var(--accent) 0%,#D35400 100%);border-radius:18px;padding:16px 19px;margin-bottom:18px;box-shadow:0 10px 30px rgba(255,107,0,.28);flex-wrap:wrap}}
-.copy-all-text{{flex:1;min-width:160px}}
-.copy-all-title{{font-size:13.5px;font-weight:800;color:#fff;display:flex;align-items:center;gap:6px}}
-.copy-all-sub{{font-size:10px;color:rgba(255,255,255,.78);margin-top:3px}}
-.copy-all-btn{{background:#fff;color:#D35400;border:none;border-radius:12px;padding:10px 19px;font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.18s;white-space:nowrap}}
-.copy-all-btn:hover{{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.22)}}
-.copy-all-btn:active{{transform:translateY(0) scale(.98)}}
-.cfg-title{{font-size:12px;font-weight:800;color:var(--t2);margin-bottom:13px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.07em}}
-.cfg-title i{{color:var(--accent);font-size:15px}}
-.cfg-grid{{display:grid;gap:13px}}
-.cfg-card{{background:var(--card);border:1px solid var(--card-b);border-radius:18px;transition:all .2s;position:relative;overflow:hidden}}
-.cfg-card:hover{{border-color:var(--card-bh);box-shadow:var(--shadow)}}
-.cfg-top{{padding:17px 19px 15px;position:relative}}
-.cfg-top::after{{content:'';position:absolute;top:0;right:0;width:3px;height:100%;background:var(--green)}}
-.cfg-card.inactive .cfg-top::after{{background:var(--red)}}
-.cfg-head{{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap}}
-.cfg-label{{font-size:14.5px;font-weight:700;color:var(--t1)}}
-.cfg-badges{{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}}
-.proto-chip{{font-size:9px;padding:3px 8px;border-radius:7px;font-weight:800;letter-spacing:.02em}}
-.pc-ws{{background:var(--accent-d);color:var(--accent2)}}
-.pc-xhttp{{background:var(--purple-bg);color:var(--purple-t)}}
-.pc-ultra{{background:var(--green-bg);color:var(--green-t)}}
-.cfg-status{{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}}
-.cfg-status.ok{{background:var(--green-bg);color:var(--green-t)}}
-.cfg-status.no{{background:var(--red-bg);color:var(--red-t)}}
-.cfg-usage{{margin-bottom:4px}}
-.ubar{{height:6px;border-radius:4px;background:rgba(255,107,0,0.1);overflow:hidden;margin-bottom:5px}}
-.ubar-f{{height:100%;border-radius:4px;transition:width .5s ease}}
-.utxt{{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}}
-.cfg-tear{{position:relative;height:0;border-top:1.5px dashed var(--card-b);margin:0 19px}}
-.cfg-tear::before,.cfg-tear::after{{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--bg);transform:translateY(-50%);border:1px solid var(--card-b)}}
-.cfg-tear::before{{right:-28px}}
-.cfg-tear::after{{left:-28px}}
-.cfg-bottom{{padding:15px 19px 18px}}
-.cfg-link-toggle{{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:transparent;border:1px dashed var(--card-b);border-radius:11px;padding:10px 13px;cursor:pointer;font-family:inherit;color:var(--t2);font-size:11.5px;font-weight:600;transition:.15s}}
-.cfg-link-toggle:hover{{background:var(--accent-d);border-color:var(--card-bh);color:var(--accent2)}}
-.cfg-link-toggle .ltl{{display:flex;align-items:center;gap:7px}}
-.cfg-link-toggle i.ti-chevron-down{{transition:transform .2s}}
-.cfg-link-toggle.open i.ti-chevron-down{{transform:rotate(180deg)}}
-.cfg-vless-wrap{{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease}}
-.cfg-vless-wrap.open{{grid-template-rows:1fr}}
-.cfg-vless-inner{{overflow:hidden}}
-.cfg-vless{{background:rgba(0,0,0,.3);border:1px solid var(--card-b);border-radius:10px;padding:11px 13px;font-size:9.8px;font-family:ui-monospace,monospace;color:var(--accent2);word-break:break-all;line-height:1.7;margin-top:9px;max-height:90px;overflow-y:auto}}
-[data-theme="light"] .cfg-vless{{background:rgba(230,126,34,.05)}}
-.cfg-actions{{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}}
-.btn{{font-family:inherit;font-size:11.5px;font-weight:700;border-radius:10px;padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:none;transition:all .15s;white-space:nowrap}}
-.btn i{{font-size:13px}}
-.btn-p{{background:linear-gradient(135deg,#FF6B00,#E67E22);color:#fff;box-shadow:0 3px 14px rgba(255,107,0,.35)}}
-.btn-p:hover{{background:#E67E22}}
-.btn-g{{background:var(--accent-d);color:var(--accent2);border:1px solid rgba(255,107,0,.16)}}
-.btn-g:hover{{background:rgba(255,107,0,.2)}}
-.btn-pur{{background:var(--purple-bg);color:var(--purple-t);border:1px solid rgba(139,92,246,.2)}}
-.btn-pur:hover{{background:rgba(139,92,246,.22)}}
-.conn-chip{{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;padding:3px 8px;border-radius:20px;background:var(--green-bg);color:var(--green-t);font-weight:700}}
-.dot{{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}}
-@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.25}}}}
-.lock-stage{{display:flex;align-items:center;justify-content:center;min-height:78vh;padding:20px 0}}
-.lock-card{{background:var(--card);border:1px solid var(--card-b);border-radius:26px;padding:0;text-align:center;max-width:380px;width:100%;box-shadow:var(--shadow);overflow:hidden;position:relative}}
-.lock-banner{{background:linear-gradient(150deg,rgba(255,107,0,.16),rgba(255,107,0,.02) 70%);padding:38px 30px 26px;position:relative}}
-.lock-shield{{width:64px;height:64px;border-radius:18px;background:var(--accent-d);border:1px solid var(--card-bh);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;position:relative}}
-.lock-shield::after{{content:'';position:absolute;inset:-7px;border-radius:22px;border:1px solid var(--card-b);animation:breathe 2.6s ease-in-out infinite}}
-@keyframes breathe{{0%,100%{{transform:scale(1);opacity:.5}}50%{{transform:scale(1.08);opacity:0}}}}
-.lock-shield i{{font-size:28px;color:var(--accent2)}}
-.lock-title{{font-size:18px;font-weight:800;margin-bottom:6px;color:var(--t1);letter-spacing:-.01em}}
-.lock-sub{{font-size:12px;color:var(--t3);line-height:1.7}}
-.lock-form{{padding:24px 30px 30px}}
-.lock-field{{position:relative;margin-bottom:13px}}
-.lock-inp{{width:100%;padding:13px 44px 13px 44px;border-radius:13px;border:1px solid var(--card-b);background:rgba(0,0,0,.3);color:var(--t1);font-family:inherit;font-size:14px;outline:none;text-align:center;letter-spacing:.14em;transition:.18s}}
-[data-theme="light"] .lock-inp{{background:rgba(230,126,34,.04)}}
-.lock-inp:focus{{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-d)}}
-.lock-eye{{position:absolute;left:13px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:4px;display:flex}}
-.lock-eye:hover{{color:var(--accent2)}}
-.lock-lockicon{{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:15px;pointer-events:none}}
-.lock-err{{color:var(--red-t);font-size:11.5px;margin-bottom:10px;min-height:16px;display:flex;align-items:center;justify-content:center;gap:5px}}
-.lock-btn{{width:100%;justify-content:center;padding:13px;font-size:13px;border-radius:13px}}
-.lock-footer{{padding:14px 30px;border-top:1px solid var(--card-b);font-size:10px;color:var(--t3);display:flex;align-items:center;justify-content:center;gap:6px}}
-.empty-state{{text-align:center;padding:80px 20px;color:var(--t3)}}
-.empty-state i{{font-size:38px;display:block;margin-bottom:14px}}
-.toast{{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(40px);background:var(--card);border:1px solid var(--card-b);color:var(--t1);border-radius:12px;padding:10px 20px;font-size:12.5px;font-weight:600;opacity:0;transition:all .25s;z-index:999;pointer-events:none;display:flex;align-items:center;gap:7px;box-shadow:var(--shadow);white-space:nowrap}}
-.toast.show{{opacity:1;transform:translateX(-50%) translateY(0)}}
-.toast.ok{{border-color:rgba(16,185,129,.35);background:var(--green-bg);color:var(--green-t)}}
-.qr-modal{{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:20px}}
-.qr-modal.open{{display:flex}}
-.qr-box{{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:26px;text-align:center;max-width:340px;width:100%;box-shadow:var(--shadow)}}
-.qr-title{{font-size:13.5px;font-weight:800;margin-bottom:16px;color:var(--t1)}}
-.qr-img{{border-radius:14px;overflow:hidden;margin-bottom:15px}}
-.qr-img img{{width:100%;display:block;background:#fff;padding:10px;border-radius:14px}}
-.footer{{text-align:center;padding-top:28px;font-size:10.5px;color:var(--t3)}}
-.footer a{{color:var(--accent2);font-weight:700}}
-@media(max-width:520px){{.stats-bar{{grid-template-columns:1fr 1fr}}.stats-bar .stat-card:nth-child(3){{grid-column:1/-1}}.sub-name{{font-size:19px}}.copy-all-bar{{flex-direction:column;align-items:stretch}}.copy-all-btn{{justify-content:center}}.wrap{{padding:16px 12px 50px}}.lock-banner{{padding:32px 22px 22px}}.lock-form{{padding:20px 22px 26px}}}}
-@keyframes spin{{to{{transform:rotate(360deg)}}}}
+html,body{min-height:100%;background:var(--bg);font-family:var(--serif);color:var(--t1);font-size:14px;transition:background .35s,color .35s}
+.bg-fx{position:fixed;inset:0;background:radial-gradient(ellipse 70% 45% at 50% -8%,rgba(255,107,0,0.13),transparent 62%),var(--bg);z-index:0;pointer-events:none;transition:background .35s}
+.grid-fx{position:fixed;inset:0;background-image:linear-gradient(rgba(255,107,0,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,107,0,0.025) 1px,transparent 1px);background-size:46px 46px;z-index:0;pointer-events:none}
+.wrap{position:relative;z-index:10;max-width:800px;margin:0 auto;padding:24px 16px 64px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;gap:10px}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.brand-img{width:40px;height:40px;border-radius:50%;overflow:hidden;border:1px solid var(--card-b);box-shadow:0 0 14px rgba(255,107,0,.3),0 0 8px rgba(255,107,0,.25);flex-shrink:0}
+.brand-img img{width:100%;height:100%;object-fit:cover}
+.brand-name{font-size:14.5px;font-weight:800;color:var(--t1);letter-spacing:-.01em}
+.brand-sub{font-size:9.5px;color:var(--t3);font-weight:500}
+.top-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.icon-btn{width:36px;height:36px;border-radius:11px;background:var(--card);border:1px solid var(--card-b);color:var(--t2);display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:.18s}
+.icon-btn:hover{background:var(--accent-d);color:var(--accent2);border-color:var(--card-bh)}
+.sub-info{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:24px 24px 22px;margin-bottom:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.sub-info::before{content:'';position:absolute;top:0;right:0;width:160px;height:160px;background:radial-gradient(circle at top right,rgba(255,107,0,.1),transparent 70%);pointer-events:none}
+.sub-eyebrow{font-size:10px;font-weight:700;color:var(--accent2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.sub-eyebrow i{font-size:13px}
+.sub-name{font-size:23px;font-weight:800;color:var(--t1);margin-bottom:6px;letter-spacing:-.02em}
+.sub-desc{font-size:12.5px;color:var(--t2);line-height:1.8;margin-bottom:14px}
+.sub-meta-row{font-size:10.5px;color:var(--t3);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.sub-sub-box{background:var(--accent-d);border:1px solid var(--card-b);border-radius:13px;padding:12px 14px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.sub-sub-url{font-family:ui-monospace,monospace;font-size:10px;color:var(--accent2);word-break:break-all;flex:1;min-width:140px}
+.stats-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.stat-card{background:var(--card);border:1px solid var(--card-b);border-radius:16px;padding:16px 17px;transition:.2s}
+.stat-card:hover{border-color:var(--card-bh);transform:translateY(-1px)}
+.stat-label{font-size:9px;color:var(--t3);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}
+.stat-val{font-size:22px;font-weight:800;color:var(--t1);line-height:1;letter-spacing:-.01em}
+.stat-sub{font-size:9.5px;color:var(--t3);margin-top:6px}
+.copy-all-bar{display:flex;align-items:center;gap:12px;background:linear-gradient(120deg,var(--accent) 0%,#D35400 100%);border-radius:18px;padding:16px 19px;margin-bottom:18px;box-shadow:0 10px 30px rgba(255,107,0,.28);flex-wrap:wrap}
+.copy-all-text{flex:1;min-width:160px}
+.copy-all-title{font-size:13.5px;font-weight:800;color:#fff;display:flex;align-items:center;gap:6px}
+.copy-all-sub{font-size:10px;color:rgba(255,255,255,.78);margin-top:3px}
+.copy-all-btn{background:#fff;color:#D35400;border:none;border-radius:12px;padding:10px 19px;font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px;transition:.18s;white-space:nowrap}
+.copy-all-btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.22)}
+.copy-all-btn:active{transform:translateY(0) scale(.98)}
+.cfg-title{font-size:12px;font-weight:800;color:var(--t2);margin-bottom:13px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.07em}
+.cfg-title i{color:var(--accent);font-size:15px}
+.cfg-grid{display:grid;gap:13px}
+.cfg-card{background:var(--card);border:1px solid var(--card-b);border-radius:18px;transition:all .2s;position:relative;overflow:hidden}
+.cfg-card:hover{border-color:var(--card-bh);box-shadow:var(--shadow)}
+.cfg-top{padding:17px 19px 15px;position:relative}
+.cfg-top::after{content:'';position:absolute;top:0;right:0;width:3px;height:100%;background:var(--green)}
+.cfg-card.inactive .cfg-top::after{background:var(--red)}
+.cfg-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.cfg-label{font-size:14.5px;font-weight:700;color:var(--t1)}
+.cfg-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.proto-chip{font-size:9px;padding:3px 8px;border-radius:7px;font-weight:800;letter-spacing:.02em}
+.pc-ws{background:var(--accent-d);color:var(--accent2)}
+.pc-xhttp{background:var(--purple-bg);color:var(--purple-t)}
+.pc-ultra{background:var(--green-bg);color:var(--green-t)}
+.cfg-status{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap}
+.cfg-status.ok{background:var(--green-bg);color:var(--green-t)}
+.cfg-status.no{background:var(--red-bg);color:var(--red-t)}
+.cfg-usage{margin-bottom:4px}
+.ubar{height:6px;border-radius:4px;background:rgba(255,107,0,0.1);overflow:hidden;margin-bottom:5px}
+.ubar-f{height:100%;border-radius:4px;transition:width .5s ease}
+.utxt{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}
+.cfg-tear{position:relative;height:0;border-top:1.5px dashed var(--card-b);margin:0 19px}
+.cfg-tear::before,.cfg-tear::after{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--bg);transform:translateY(-50%);border:1px solid var(--card-b)}
+.cfg-tear::before{right:-28px}
+.cfg-tear::after{left:-28px}
+.cfg-bottom{padding:15px 19px 18px}
+.cfg-link-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:transparent;border:1px dashed var(--card-b);border-radius:11px;padding:10px 13px;cursor:pointer;font-family:inherit;color:var(--t2);font-size:11.5px;font-weight:600;transition:.15s}
+.cfg-link-toggle:hover{background:var(--accent-d);border-color:var(--card-bh);color:var(--accent2)}
+.cfg-link-toggle .ltl{display:flex;align-items:center;gap:7px}
+.cfg-link-toggle i.ti-chevron-down{transition:transform .2s}
+.cfg-link-toggle.open i.ti-chevron-down{transform:rotate(180deg)}
+.cfg-vless-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease}
+.cfg-vless-wrap.open{grid-template-rows:1fr}
+.cfg-vless-inner{overflow:hidden}
+.cfg-vless{background:rgba(0,0,0,.3);border:1px solid var(--card-b);border-radius:10px;padding:11px 13px;font-size:9.8px;font-family:ui-monospace,monospace;color:var(--accent2);word-break:break-all;line-height:1.7;margin-top:9px;max-height:90px;overflow-y:auto}
+[data-theme="light"] .cfg-vless{background:rgba(230,126,34,.05)}
+.cfg-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.btn{font-family:inherit;font-size:11.5px;font-weight:700;border-radius:10px;padding:8px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:none;transition:all .15s;white-space:nowrap}
+.btn i{font-size:13px}
+.btn-p{background:linear-gradient(135deg,#FF6B00,#E67E22);color:#fff;box-shadow:0 3px 14px rgba(255,107,0,.35)}
+.btn-p:hover{background:#E67E22}
+.btn-g{background:var(--accent-d);color:var(--accent2);border:1px solid rgba(255,107,0,.16)}
+.btn-g:hover{background:rgba(255,107,0,.2)}
+.btn-pur{background:var(--purple-bg);color:var(--purple-t);border:1px solid rgba(139,92,246,.2)}
+.btn-pur:hover{background:rgba(139,92,246,.22)}
+.conn-chip{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;padding:3px 8px;border-radius:20px;background:var(--green-bg);color:var(--green-t);font-weight:700}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.lock-stage{display:flex;align-items:center;justify-content:center;min-height:78vh;padding:20px 0}
+.lock-card{background:var(--card);border:1px solid var(--card-b);border-radius:26px;padding:0;text-align:center;max-width:380px;width:100%;box-shadow:var(--shadow);overflow:hidden;position:relative}
+.lock-banner{background:linear-gradient(150deg,rgba(255,107,0,.16),rgba(255,107,0,.02) 70%);padding:38px 30px 26px;position:relative}
+.lock-shield{width:64px;height:64px;border-radius:18px;background:var(--accent-d);border:1px solid var(--card-bh);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;position:relative}
+.lock-shield::after{content:'';position:absolute;inset:-7px;border-radius:22px;border:1px solid var(--card-b);animation:breathe 2.6s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.08);opacity:0}}
+.lock-shield i{font-size:28px;color:var(--accent2)}
+.lock-title{font-size:18px;font-weight:800;margin-bottom:6px;color:var(--t1);letter-spacing:-.01em}
+.lock-sub{font-size:12px;color:var(--t3);line-height:1.7}
+.lock-form{padding:24px 30px 30px}
+.lock-field{position:relative;margin-bottom:13px}
+.lock-inp{width:100%;padding:13px 44px 13px 44px;border-radius:13px;border:1px solid var(--card-b);background:rgba(0,0,0,.3);color:var(--t1);font-family:inherit;font-size:14px;outline:none;text-align:center;letter-spacing:.14em;transition:.18s}
+[data-theme="light"] .lock-inp{background:rgba(230,126,34,.04)}
+.lock-inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-d)}
+.lock-eye{position:absolute;left:13px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:4px;display:flex}
+.lock-eye:hover{color:var(--accent2)}
+.lock-lockicon{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:15px;pointer-events:none}
+.lock-err{color:var(--red-t);font-size:11.5px;margin-bottom:10px;min-height:16px;display:flex;align-items:center;justify-content:center;gap:5px}
+.lock-btn{width:100%;justify-content:center;padding:13px;font-size:13px;border-radius:13px}
+.lock-footer{padding:14px 30px;border-top:1px solid var(--card-b);font-size:10px;color:var(--t3);display:flex;align-items:center;justify-content:center;gap:6px}
+.empty-state{text-align:center;padding:80px 20px;color:var(--t3)}
+.empty-state i{font-size:38px;display:block;margin-bottom:14px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(40px);background:var(--card);border:1px solid var(--card-b);color:var(--t1);border-radius:12px;padding:10px 20px;font-size:12.5px;font-weight:600;opacity:0;transition:all .25s;z-index:999;pointer-events:none;display:flex;align-items:center;gap:7px;box-shadow:var(--shadow);white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{border-color:rgba(16,185,129,.35);background:var(--green-bg);color:var(--green-t)}
+.qr-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:600;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:20px}
+.qr-modal.open{display:flex}
+.qr-box{background:var(--card);border:1px solid var(--card-b);border-radius:22px;padding:26px;text-align:center;max-width:340px;width:100%;box-shadow:var(--shadow)}
+.qr-title{font-size:13.5px;font-weight:800;margin-bottom:16px;color:var(--t1)}
+.qr-img{border-radius:14px;overflow:hidden;margin-bottom:15px}
+.qr-img img{width:100%;display:block;background:#fff;padding:10px;border-radius:14px}
+.footer{text-align:center;padding-top:28px;font-size:10.5px;color:var(--t3)}
+.footer a{color:var(--accent2);font-weight:700}
+@media(max-width:520px){{.stats-bar{grid-template-columns:1fr 1fr}.stats-bar .stat-card:nth-child(3){grid-column:1/-1}.sub-name{font-size:19px}.copy-all-bar{flex-direction:column;align-items:stretch}.copy-all-btn{justify-content:center}.wrap{padding:16px 12px 50px}.lock-banner{padding:32px 22px 22px}.lock-form{padding:20px 22px 26px}}}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -863,13 +863,13 @@ function protoChip(p){{if(p==='xhttp-stream-one')return '<span class="proto-chip
 function showQR(label,link){{document.getElementById('qr-label').textContent=label;document.getElementById('qr-img').src='https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(link);document.getElementById('qr-modal').classList.add('open');}}
 function toggleLink(i){{const wrap=document.getElementById('vw-'+i);const btn=document.getElementById('vt-'+i);const open=wrap.classList.toggle('open');btn.classList.toggle('open',open);btn.querySelector('.ltl span').textContent=open?'پنهان کردن لینک':'نمایش لینک کانفیگ';}}
 async function loadData(pw=''){{const r=await fetch('/api/public/sub/'+UUID_KEY+(pw?'?pw='+encodeURIComponent(pw):''));return r.json();}}
-function renderLock(name,errMsg=''){{document.getElementById('root').innerHTML=`<div class="lock-stage"><div class="lock-card"><div class="lock-banner"><div class="lock-shield"><i class="ti ti-shield-lock"></i></div><div class="lock-title">${esc(name)}</div><div class="lock-sub">این گروه با رمز محافظت شده. برای دیدن کانفیگ‌ها رمز رو وارد کنید.</div></div><div class="lock-form"><div class="lock-err" id="lock-err">${errMsg?'<i class="ti ti-alert-circle"></i> '+esc(errMsg):''}</div><div class="lock-field"><i class="ti ti-lock lock-lockicon"></i><input class="lock-inp" type="password" id="lock-pw" placeholder="••••••••" autofocus><button class="lock-eye" type="button" onclick="togglePwVis()"><i class="ti ti-eye" id="lock-eye-icon"></i></button></div><button class="btn btn-p lock-btn" onclick="submitLock()"><i class="ti ti-lock-open"></i> ورود به گروه</button></div><div class="lock-footer"><i class="ti ti-shield-check"></i> اتصال شما رمزنگاری‌شده است</div></div></div>`;document.getElementById('lock-pw').addEventListener('keydown',e=>{{if(e.key==='Enter')submitLock()}});}}
+function renderLock(name,errMsg=''){{document.getElementById('root').innerHTML=`<div class="lock-stage"><div class="lock-card"><div class="lock-banner"><div class="lock-shield"><i class="ti ti-shield-lock"></i></div><div class="lock-title">\${esc(name)}</div><div class="lock-sub">این گروه با رمز محافظت شده. برای دیدن کانفیگ‌ها رمز رو وارد کنید.</div></div><div class="lock-form"><div class="lock-err" id="lock-err">\${errMsg?'<i class="ti ti-alert-circle"></i> '+esc(errMsg):''}</div><div class="lock-field"><i class="ti ti-lock lock-lockicon"></i><input class="lock-inp" type="password" id="lock-pw" placeholder="••••••••" autofocus><button class="lock-eye" type="button" onclick="togglePwVis()"><i class="ti ti-eye" id="lock-eye-icon"></i></button></div><button class="btn btn-p lock-btn" onclick="submitLock()"><i class="ti ti-lock-open"></i> ورود به گروه</button></div><div class="lock-footer"><i class="ti ti-shield-check"></i> اتصال شما رمزنگاری‌شده است</div></div></div>`;document.getElementById('lock-pw').addEventListener('keydown',e=>{{if(e.key==='Enter')submitLock()}});}}
 function togglePwVis(){{const inp=document.getElementById('lock-pw'),icon=document.getElementById('lock-eye-icon'),toText=inp.type==='password';inp.type=toText?'text':'password';icon.className='ti '+(toText?'ti-eye-off':'ti-eye');}}
 async function submitLock(){{const pw=document.getElementById('lock-pw').value,data=await loadData(pw);if(data.locked){{renderLock(data.name,'رمز اشتباه است');return}}savedPw=pw;renderContent(data);}}
-function renderContent(d){{const activeCount=d.links.filter(l=>l.active).length;const baseSubUrl=d.sub_url||(window.location.protocol+'//'+window.location.host+'/sub-group/'+UUID_KEY);const subUrl=baseSubUrl+(savedPw?'?pw='+encodeURIComponent(savedPw):'');window._tkuiSubUrl=subUrl;window._tkuiSubName=d.name;window._tkuiLinks=d.links.map(l=>({{vless:l.vless_link,sub:l.sub_url+(savedPw?'?pw='+encodeURIComponent(savedPw):''),label:l.label}}));document.getElementById('root').innerHTML=`<div class="sub-info"><div class="sub-eyebrow"><i class="ti ti-folders"></i> گروه دسترسی</div><div class="sub-name">${esc(d.name)}</div>${d.desc?`<div class="sub-desc">${esc(d.desc)}</div>`:''}<div class="sub-meta-row"><i class="ti ti-clock"></i> آخرین بروزرسانی: ${new Date().toLocaleTimeString('fa-IR')}</div><div class="sub-sub-box"><span class="sub-sub-url">${esc(subUrl)}</span><button class="btn btn-pur" style="padding:7px 12px;font-size:10.5px" onclick="navigator.clipboard.writeText(window._tkuiSubUrl).then(()=>toast('لینک ساب کپی شد ✓','ok'))"><i class="ti ti-copy"></i> کپی لینک ساب</button><button class="btn btn-g" style="padding:7px 12px;font-size:10.5px" onclick="showQR(window._tkuiSubName+' — کل گروه',window._tkuiSubUrl)"><i class="ti ti-qrcode"></i> QR کل</button></div></div><div class="copy-all-bar"><div class="copy-all-text"><div class="copy-all-title"><i class="ti ti-copy"></i> کپی همه‌ی کانفیگ‌ها</div><div class="copy-all-sub">تمام لینک‌های فعال این گروه را یک‌جا کپی کن</div></div><button class="copy-all-btn" onclick="copyAllConfigs()"><i class="ti ti-clipboard-copy"></i> کپی همه (${toFa(activeCount)})</button></div><div class="stats-bar"><div class="stat-card"><div class="stat-label">کانفیگ‌های فعال</div><div class="stat-val">${toFa(activeCount)}</div><div class="stat-sub">از ${toFa(d.links.length)} کانفیگ</div></div><div class="stat-card"><div class="stat-label">اتصالات زنده</div><div class="stat-val">${toFa(d.active_connections)}</div><div class="stat-sub" style="color:var(--green-t);display:flex;align-items:center;gap:4px"><span class="dot"></span> آنلاین</div></div><div class="stat-card"><div class="stat-label">کل مصرف</div><div class="stat-val" style="font-size:17px;margin-top:3px">${esc(d.total_used_fmt)}</div><div class="stat-sub">همه کانفیگ‌ها</div></div></div><div class="cfg-title"><i class="ti ti-link"></i> کانفیگ‌ها (${toFa(d.links.length)} عدد)</div><div class="cfg-grid">${d.links.map((l,i)=>{{const pct=l.limit_bytes===0?0:Math.min(100,l.used_bytes/l.limit_bytes*100);const bc=pct>90?'var(--red)':pct>70?'var(--amber)':'var(--green)';const lim=l.limit_bytes===0?'∞':fmtB(l.limit_bytes);return `<div class="cfg-card${l.active?'':' inactive'}"><div class="cfg-top"><div class="cfg-head"><div><div class="cfg-label">${esc(l.label)}</div><div class="cfg-badges">${protoChip(l.protocol)}${l.connections>0?`<span class="conn-chip"><span class="dot"></span> ${toFa(l.connections)} اتصال</span>`:''}</div></div><span class="cfg-status ${l.active?'ok':'no'}">${l.active?'<i class="ti ti-circle-check"></i> فعال':'<i class="ti ti-circle-x"></i> غیرفعال'}</span></div><div class="cfg-usage"><div class="ubar"><div class="ubar-f" style="width:${pct}%;background:${bc}"></div></div><div class="utxt"><span>${esc(l.used_fmt)} مصرف شده</span><span>سهمیه: ${lim}</span></div></div></div><div class="cfg-tear"></div><div class="cfg-bottom"><button class="cfg-link-toggle" id="vt-${i}" onclick="toggleLink(${i})"><span class="ltl"><i class="ti ti-eye"></i> <span>نمایش لینک کانفیگ</span></span><i class="ti ti-chevron-down"></i></button><div class="cfg-vless-wrap" id="vw-${i}"><div class="cfg-vless-inner"><div class="cfg-vless">${esc(l.vless_link)}</div></div></div><div class="cfg-actions"><button class="btn btn-p" onclick="navigator.clipboard.writeText(window._tkuiLinks[${i}].vless).then(()=>toast('لینک کپی شد ✓','ok'))"><i class="ti ti-copy"></i> کپی لینک</button><button class="btn btn-g" onclick="showQR(window._tkuiLinks[${i}].label,window._tkuiLinks[${i}].vless)"><i class="ti ti-qrcode"></i> QR</button></div></div></div>`}}).join('')}</div>`;setTimeout(()=>autoRefresh(),30000);}}
+function renderContent(d){{const activeCount=d.links.filter(l=>l.active).length;const baseSubUrl=d.sub_url||(window.location.protocol+'//'+window.location.host+'/sub-group/'+UUID_KEY);const subUrl=baseSubUrl+(savedPw?'?pw='+encodeURIComponent(savedPw):'');window._tkuiSubUrl=subUrl;window._tkuiSubName=d.name;window._tkuiLinks=d.links.map(l=>({{vless:l.vless_link,sub:l.sub_url+(savedPw?'?pw='+encodeURIComponent(savedPw):''),label:l.label}}));document.getElementById('root').innerHTML=`<div class="sub-info"><div class="sub-eyebrow"><i class="ti ti-folders"></i> گروه دسترسی</div><div class="sub-name">\${esc(d.name)}</div>\${d.desc?`<div class="sub-desc">\${esc(d.desc)}</div>`:''}<div class="sub-meta-row"><i class="ti ti-clock"></i> آخرین بروزرسانی: \${new Date().toLocaleTimeString('fa-IR')}</div><div class="sub-sub-box"><span class="sub-sub-url">\${esc(subUrl)}</span><button class="btn btn-pur" style="padding:7px 12px;font-size:10.5px" onclick="navigator.clipboard.writeText(window._tkuiSubUrl).then(()=>toast('لینک ساب کپی شد ✓','ok'))"><i class="ti ti-copy"></i> کپی لینک ساب</button><button class="btn btn-g" style="padding:7px 12px;font-size:10.5px" onclick="showQR(window._tkuiSubName+' — کل گروه',window._tkuiSubUrl)"><i class="ti ti-qrcode"></i> QR کل</button></div></div><div class="copy-all-bar"><div class="copy-all-text"><div class="copy-all-title"><i class="ti ti-copy"></i> کپی همه‌ی کانفیگ‌ها</div><div class="copy-all-sub">تمام لینک‌های فعال این گروه را یک‌جا کپی کن</div></div><button class="copy-all-btn" onclick="copyAllConfigs()"><i class="ti ti-clipboard-copy"></i> کپی همه (\${toFa(activeCount)})</button></div><div class="stats-bar"><div class="stat-card"><div class="stat-label">کانفیگ‌های فعال</div><div class="stat-val">\${toFa(activeCount)}</div><div class="stat-sub">از \${toFa(d.links.length)} کانفیگ</div></div><div class="stat-card"><div class="stat-label">اتصالات زنده</div><div class="stat-val">\${toFa(d.active_connections)}</div><div class="stat-sub" style="color:var(--green-t);display:flex;align-items:center;gap:4px"><span class="dot"></span> آنلاین</div></div><div class="stat-card"><div class="stat-label">کل مصرف</div><div class="stat-val" style="font-size:17px;margin-top:3px">\${esc(d.total_used_fmt)}</div><div class="stat-sub">همه کانفیگ‌ها</div></div></div><div class="cfg-title"><i class="ti ti-link"></i> کانفیگ‌ها (\${toFa(d.links.length)} عدد)</div><div class="cfg-grid">\${d.links.map((l,i)=>{{const pct=l.limit_bytes===0?0:Math.min(100,l.used_bytes/l.limit_bytes*100);const bc=pct>90?'var(--red)':pct>70?'var(--amber)':'var(--green)';const lim=l.limit_bytes===0?'∞':fmtB(l.limit_bytes);return `<div class="cfg-card\${l.active?'':' inactive'}"><div class="cfg-top"><div class="cfg-head"><div><div class="cfg-label">\${esc(l.label)}</div><div class="cfg-badges">\${protoChip(l.protocol)}\${l.connections>0?`<span class="conn-chip"><span class="dot"></span> \${toFa(l.connections)} اتصال</span>`:''}</div></div><span class="cfg-status \${l.active?'ok':'no'}">\${l.active?'<i class="ti ti-circle-check"></i> فعال':'<i class="ti ti-circle-x"></i> غیرفعال'}</span></div><div class="cfg-usage"><div class="ubar"><div class="ubar-f" style="width:\${pct}%;background:\${bc}"></div></div><div class="utxt"><span>\${esc(l.used_fmt)} مصرف شده</span><span>سهمیه: \${lim}</span></div></div></div><div class="cfg-tear"></div><div class="cfg-bottom"><button class="cfg-link-toggle" id="vt-\${i}" onclick="toggleLink(\${i})"><span class="ltl"><i class="ti ti-eye"></i> <span>نمایش لینک کانفیگ</span></span><i class="ti ti-chevron-down"></i></button><div class="cfg-vless-wrap" id="vw-\${i}"><div class="cfg-vless-inner"><div class="cfg-vless">\${esc(l.vless_link)}</div></div></div><div class="cfg-actions"><button class="btn btn-p" onclick="navigator.clipboard.writeText(window._tkuiLinks[\${i}].vless).then(()=>toast('لینک کپی شد ✓','ok'))"><i class="ti ti-copy"></i> کپی لینک</button><button class="btn btn-g" onclick="showQR(window._tkuiLinks[\${i}].label,window._tkuiLinks[\${i}].vless)"><i class="ti ti-qrcode"></i> QR</button></div></div></div>`}}).join('')}</div>`;setTimeout(()=>autoRefresh(),30000);}}
 function copyAllConfigs(){{const links=window._tkuiLinks||[];if(!links.length){{toast('کانفیگی برای کپی نیست','');return}}const text=links.map(l=>l.vless).join('\\n');navigator.clipboard.writeText(text).then(()=>toast('همه‌ی '+toFa(links.length)+' کانفیگ کپی شد ✓','ok'));}}
 async function autoRefresh(){{try{{const data=await loadData(savedPw);if(!data.locked)renderContent(data);}}catch(e){{}}}}
 async function init(){{try{{const data=await loadData();if(data.locked){{renderLock(data.name);return}}renderContent(data);}}catch(e){{document.getElementById('root').innerHTML='<div class="empty-state" style="color:var(--red-t)"><i class="ti ti-alert-circle"></i>خطا در بارگذاری</div>';}}}}
 init();
 </script>
-</body></html>"""
+</body></html>""".format(LOGO_B64=LOGO_B64, uuid_key=uuid_key)
