@@ -112,18 +112,8 @@ DEFAULT_ALPN_BY_PROTOCOL = {
 DEFAULT_PORT = 443
 MIN_PORT, MAX_PORT = 1, 65535
 
-# شمارنده برای نام‌گذاری خودکار کانفیگ‌ها
-_link_counter = 0
-
-def generate_link_label() -> str:
-    """تولید نام خودکار برای کانفیگ‌ها به‌صورت TK-UI، TK-UI-1، TK-UI-2، ..."""
-    global _link_counter
-    _link_counter += 1
-    if _link_counter == 1:
-        return "TK-UI"
-    return f"TK-UI-{_link_counter - 1}"
-
 def log_activity(kind: str, message: str, level: str = "info"):
+    """ثبت یک رخداد در لاگ فعالیت‌ها (ساخت/حذف/ویرایش کانفیگ، ورود، و...)."""
     activity_logs.append({
         "kind": kind,
         "level": level,
@@ -202,6 +192,25 @@ def generate_uuid() -> str:
 def now_ir() -> datetime:
     return datetime.now(IRAN_TZ)
 
+def generate_link_label() -> str:
+    """تولید نام خودکار برای کانفیگ‌های جدید (TK-UI, TK-UI-1, ...)"""
+    async with LINKS_LOCK:
+        # شمارش کانفیگ‌هایی که با TK-UI شروع می‌شوند (به‌جز پیش‌فرض)
+        existing = [l for l in LINKS.values() if l.get("label", "").startswith("TK-UI")]
+    if not existing:
+        return "TK-UI"
+    # پیدا کردن بزرگترین عدد پسوند
+    max_num = 0
+    for l in existing:
+        label = l.get("label", "")
+        if label == "TK-UI":
+            continue
+        if label.startswith("TK-UI-") and label[6:].isdigit():
+            num = int(label[6:])
+            if num > max_num:
+                max_num = num
+    return f"TK-UI-{max_num + 1}"
+
 def generate_vless_link(
     uuid: str,
     host: str,
@@ -211,6 +220,8 @@ def generate_vless_link(
     alpn: str | None = None,
     port: int | None = None,
 ) -> str:
+    """می‌سازد VLESS share-link متناسب با پروتکل انتخاب‌شده (WS کلاسیک یا یکی از مدهای XHTTP).
+    fingerprint / alpn / port در صورت ندادن، از پیش‌فرض‌های خود پروتکل استفاده می‌شوند."""
     fp = (fingerprint or DEFAULT_FINGERPRINT).strip() or DEFAULT_FINGERPRINT
     if fp not in FINGERPRINTS:
         fp = DEFAULT_FINGERPRINT
@@ -232,7 +243,8 @@ def generate_vless_link(
             "alpn": alpn_val,
         }
     else:
-        mode = protocol.replace("xhttp-", "")
+        # xhttp-packet-up / xhttp-stream-up / xhttp-stream-one
+        mode = protocol.replace("xhttp-", "")  # packet-up | stream-up | stream-one
         path = f"/xhttp-siz10/{mode}/{uuid}"
         params = {
             "encryption": "none",
@@ -249,6 +261,7 @@ def generate_vless_link(
     return f"vless://{uuid}@{host}:{port_val}?{query}#{quote(remark)}"
 
 def vless_link_for_link(link: dict, uid: str, host: str) -> str:
+    """generate_vless_link رو با تنظیمات دستی همون کانفیگ (fingerprint/alpn/port) صدا می‌زنه."""
     proto = link.get("protocol", DEFAULT_PROTOCOL)
     return generate_vless_link(
         uid, host,
@@ -299,9 +312,13 @@ def fmt_bytes(b: int) -> str:
     return f"{b/1024**3:.2f} GB"
 
 def unique_ips_for_uuid(uuid: str) -> set:
+    """آی‌پی‌های یکتای همین لحظه متصل به یک UUID خاص (بر اساس dict اتصالات زنده)."""
     return {c.get("ip") for c in connections.values() if c.get("uuid") == uuid and c.get("ip")}
 
 def is_ip_allowed(link: dict | None, uuid: str, ip: str) -> bool:
+    """محدودیت تعداد آی‌پی/کاربر هم‌زمان برای هر کانفیگ. ip_limit=0 یعنی نامحدود.
+    اگر همین آی‌پی از قبل روی این کانفیگ سشن باز داشته باشه، همیشه مجازه (برای چند اتصال
+    هم‌زمان از یک دستگاه/مرورگر مشکلی پیش نمیاد)."""
     if link is None:
         return False
     limit = int(link.get("ip_limit", 0) or 0)
@@ -313,6 +330,7 @@ def is_ip_allowed(link: dict | None, uuid: str, ip: str) -> bool:
     return len(ips) < limit
 
 def client_ip(request: Request) -> str:
+    """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه."""
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
         return fwd.split(",")[0].strip()
@@ -334,7 +352,7 @@ async def ensure_default_link():
             uid = f"{uid[:8]}-{uid[8:12]}-{uid[12:16]}-{uid[16:20]}-{uid[20:32]}"
             if uid not in LINKS:
                 LINKS[uid] = {
-                    "label": "لینک پیش‌فرض",
+                    "label": "TK-UI",
                     "limit_bytes": 0,
                     "used_bytes": 0,
                     "created_at": datetime.now().isoformat(),
@@ -578,7 +596,7 @@ async def api_change_password(request: Request, token=Depends(require_auth)):
     return {"ok": True}
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
-@app.get("/api/stats")
+@app.get("/stats")
 async def get_stats(_=Depends(require_auth)):
     async with LINKS_LOCK:
         snap = dict(LINKS)
@@ -605,6 +623,13 @@ async def get_activity(_=Depends(require_auth)):
 # ── Live connections (with IP) ────────────────────────────────────────────────
 @app.get("/api/connections")
 async def get_connections(_=Depends(require_auth)):
+    """
+    خروجی این endpoint حالا بر اساس IP گروه‌بندی شده:
+    هر آی‌پی فقط یک آیتم نمایش داده می‌شود، با جمع بایت‌های تمام سشن‌های
+    باز روی همان آی‌پی و تعداد سشن‌های فعال آن آی‌پی.
+    raw_count همچنان تعداد واقعی اتصالات باز (سشن‌های خام، مثلاً ۴۰ تا
+    اتصال هم‌زمان یک موبایل) را برمی‌گرداند.
+    """
     async with LINKS_LOCK:
         snap = dict(LINKS)
 
@@ -653,20 +678,19 @@ async def get_connections(_=Depends(require_auth)):
 
     return {
         "connections": result,
-        "count": len(result),
-        "raw_count": len(connections),
+        "count": len(result),          # تعداد آی‌پی‌های یکتا
+        "raw_count": len(connections), # تعداد کل اتصالات باز (بدون گروه‌بندی)
     }
 
 # ── Link Management ───────────────────────────────────────────────────────────
 @app.post("/api/links")
 async def create_link(request: Request, _=Depends(require_auth)):
-    global _link_counter
     body = await request.json()
-    
-    # تولید نام خودکار
-    auto_label = generate_link_label()
-    label = (body.get("label") or auto_label).strip()[:60]
-    
+    label = (body.get("label") or "").strip()
+    if not label:
+        label = generate_link_label()
+    else:
+        label = label[:60]
     lv = float(body.get("limit_value") or 0)
     lu = body.get("limit_unit") or "GB"
     limit_bytes = 0 if lv <= 0 else parse_size_to_bytes(lv, lu)
@@ -763,7 +787,7 @@ async def update_link(uid: str, request: Request, _=Depends(require_auth)):
         label = link.get("label")
         if "active" in body:
             link["active"] = bool(body["active"])
-            log_activity("link", f"کانفیگ «{label}» {'فعال' if link['active'] else 'غیرفعال'} شد", "ok" if link['active'] else "warn")
+            log_activity("link", f"کانفیگ «{label}» {'فعال' if link['active'] else 'غیرفعال'} شد", "ok" if link["active"] else "warn")
         if "label" in body:
             link["label"] = str(body["label"])[:60]
         if "note" in body:
@@ -834,7 +858,7 @@ async def delete_link(uid: str, _=Depends(require_auth)):
     return {"ok": True, "deleted": uid}
 
 # ══════════════════════════════════════════════════════════════════════════════
-# VLESS Relay — جدا شده به relay_vless.py
+# VLESS Relay — جدا شده به relay_vless.py (دست نخورده)
 # ══════════════════════════════════════════════════════════════════════════════
 
 from relay_vless import (
@@ -849,7 +873,7 @@ from relay_vless import (
 app.add_api_websocket_route("/ws/{uuid}", websocket_tunnel)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# XHTTP — Siz10a XHTTP Ultra
+# XHTTP — Siz10a XHTTP Ultra (ترابرد جدید، جدا از VLESS/WS، هر ۳ مد)
 # ══════════════════════════════════════════════════════════════════════════════
 from xhttp_siz10 import router as xhttp_router
 app.include_router(xhttp_router)
@@ -883,7 +907,7 @@ async def public_sub_page(uuid_key: str, request: Request):
     async with SUBS_LOCK:
         sub = next(({"sub_id": sid, **s} for sid, s in SUBS.items() if s.get("uuid_key") == uuid_key), None)
     if not sub:
-        return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px;color:#fff;background:#0a0a0a;'>گروه پیدا نشد</h2>", status_code=404)
+        return HTMLResponse("<h2 style='font-family:sans-serif;padding:40px'>گروه پیدا نشد</h2>", status_code=404)
     return HTMLResponse(content=get_public_page_html(uuid_key))
 
 @app.get("/api/public/sub/{uuid_key}")
