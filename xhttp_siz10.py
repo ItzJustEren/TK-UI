@@ -1,4 +1,4 @@
-Enter# xhttp_siz10.py
+# xhttp_siz10.py
 # TK-Ui · XHTTP Ultra Transport — دو مد: packet-up / stream-up
 
 import asyncio
