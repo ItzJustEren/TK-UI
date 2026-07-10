@@ -1,4 +1,4 @@
-Enter# pages.py  -  TK-Ui v9.2
+# pages.py  -  TK-Ui v9.2
 # شامل: LOGIN_HTML, DASHBOARD_HTML, get_public_page_html()
 
 # لوگوی TK-Ui (به‌صورت base64 داخلی، بدون نیاز به هاست خارجی)
