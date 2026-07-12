@@ -28,6 +28,7 @@ from main import (
     save_state,
 )
 from relay_vless import parse_vless_header, check_and_use
+from speed_limit import throttle
 
 router = APIRouter()
 
@@ -295,6 +296,7 @@ async def _pump_tcp_to_queue(session_id: str, uuid: str, reader: asyncio.StreamR
                 break
             if not await gate.add(len(data)):
                 break
+            await throttle(uuid, len(data))
             async with XHTTP_LOCK:
                 sess = xhttp_sessions.get(session_id)
             if sess:
@@ -369,6 +371,7 @@ async def packet_up_upload(uuid: str, session_id: str, seq: int, request: Reques
     if not await check_and_use(uuid, len(body)):
         await _teardown(session_id)
         raise HTTPException(status_code=403, detail="quota/disabled/unknown")
+    await throttle(uuid, len(body))
 
     stats["total_requests"] += 1
     connections[sess["conn_id"]]["bytes"] += len(body)
@@ -442,6 +445,7 @@ async def stream_up_upload(uuid: str, session_id: str, request: Request):
 
             if not await gate.add(len(chunk)):
                 raise HTTPException(status_code=403, detail="quota/disabled/unknown")
+            await throttle(uuid, len(chunk))
 
             stats["total_requests"] += 1
             conn["bytes"] += len(chunk)
