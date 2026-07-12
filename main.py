@@ -32,12 +32,6 @@ SECRET_FILE = DATA_DIR / "tkui_secret.key"
 SAVE_LOCK = asyncio.Lock()
 
 def _load_or_create_secret() -> str:
-    """SECRET_KEY را روی دیسک ذخیره و ثابت نگه می‌دارد.
-    قبلاً وقتی متغیر محیطی SECRET_KEY تنظیم نشده بود، با هر ری‌استارت سرویس
-    (که روی Railway هر چند ساعت یک‌بار اتفاق می‌افتد) یک مقدار تصادفی جدید
-    ساخته می‌شد. چون هش پسورد بر پایه‌ی همین secret ساخته می‌شود، تغییر آن
-    باعث می‌شد پسورد درست هم دیگر قبول نشود. حالا secret یک‌بار ساخته و در
-    فایل ذخیره می‌شود و در ری‌استارت‌های بعدی همان مقدار خوانده می‌شود."""
     env_secret = os.environ.get("SECRET_KEY")
     if env_secret:
         return env_secret
@@ -69,7 +63,7 @@ app.add_middleware(
 )
 
 async def load_state():
-    global LINKS, AUTH, SUBS
+    global LINKS, AUTH, SUBS, PRODUCTS, ORDERS, CARD_NUMBER, CARD_OWNER_NAME, PRICE_PER_GB, ADMIN_IDS, OWNER_ID
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -78,9 +72,21 @@ async def load_state():
             data = json.loads(raw)
             LINKS.update(data.get("links", {}))
             SUBS.update(data.get("subs", {}))
+            PRODUCTS.update(data.get("products", {}))
+            ORDERS.update(data.get("orders", {}))
             if "password_hash" in data:
                 AUTH["password_hash"] = data["password_hash"]
-            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs")
+            if "card_number" in data:
+                CARD_NUMBER = data["card_number"]
+            if "card_owner_name" in data:
+                CARD_OWNER_NAME = data["card_owner_name"]
+            if "price_per_gb" in data:
+                PRICE_PER_GB = data["price_per_gb"]
+            if "admin_ids" in data:
+                ADMIN_IDS = set(data["admin_ids"])
+            if "owner_id" in data:
+                OWNER_ID = data["owner_id"]
+            logger.info(f"State loaded: {len(LINKS)} links, {len(SUBS)} subs, {len(PRODUCTS)} products, {len(ORDERS)} orders")
     except Exception as e:
         logger.warning(f"Could not load state: {e}")
 
@@ -91,7 +97,14 @@ async def save_state():
             data = {
                 "links": dict(LINKS),
                 "subs": dict(SUBS),
+                "products": dict(PRODUCTS),
+                "orders": dict(ORDERS),
                 "password_hash": AUTH["password_hash"],
+                "card_number": CARD_NUMBER,
+                "card_owner_name": CARD_OWNER_NAME,
+                "price_per_gb": PRICE_PER_GB,
+                "admin_ids": list(ADMIN_IDS),
+                "owner_id": OWNER_ID,
                 "saved_at": datetime.now().isoformat(),
             }
             tmp = DATA_FILE.with_suffix(".tmp")
@@ -118,15 +131,20 @@ LINKS_LOCK = asyncio.Lock()
 SUBS: dict = {}
 SUBS_LOCK = asyncio.Lock()
 
-# پروتکل‌های پشتیبانی‌شده برای هر کانفیگ
+PRODUCTS: dict = {}
+PRODUCTS_LOCK = asyncio.Lock()
+ORDERS: dict = {}
+ORDERS_LOCK = asyncio.Lock()
+CARD_NUMBER = os.environ.get("CARD_NUMBER", "6037-9910-1234-5678")
+CARD_OWNER_NAME = os.environ.get("CARD_OWNER_NAME", "نام صاحب کارت")
+PRICE_PER_GB = float(os.environ.get("PRICE_PER_GB", "6"))  # قیمت هر گیگ به هزار تومان
+ADMIN_IDS = set()
+OWNER_ID = None
+
 PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one")
 DEFAULT_PROTOCOL = "vless-ws"
-
-# Fingerprint (uTLS) های قابل انتخاب برای هر کانفیگ
 FINGERPRINTS = ("chrome", "firefox", "safari", "ios", "android", "edge", "360", "qq", "random", "randomized")
 DEFAULT_FINGERPRINT = "chrome"
-
-# پیش‌فرض ALPN بر اساس نوع ترابرد (اگر کاربر مقدار دستی نده)
 DEFAULT_ALPN_BY_PROTOCOL = {
     "vless-ws": "http/1.1",
     "xhttp-packet-up": "h2,http/1.1",
@@ -135,12 +153,9 @@ DEFAULT_ALPN_BY_PROTOCOL = {
 }
 DEFAULT_PORT = 443
 MIN_PORT, MAX_PORT = 1, 65535
-
-# محدودیت سرعت (0 = نامحدود). واحد ذخیره‌سازی داخلی همیشه بایت‌بر‌ثانیه است.
 DEFAULT_SPEED_LIMIT = 0
 
 def log_activity(kind: str, message: str, level: str = "info"):
-    """ثبت یک رخداد در لاگ فعالیت‌ها (ساخت/حذف/ویرایش کانفیگ، ورود، و...)."""
     activity_logs.append({
         "kind": kind,
         "level": level,
@@ -212,15 +227,11 @@ async def shutdown():
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def get_host(request: Request | None = None) -> str:
-    """آدرس دامنه رو ترجیحاً از خودِ درخواست HTTP می‌گیره (هدر Host/X-Forwarded-Host)
-    چون این همیشه دقیقاً همون دامنه‌ایه که کاربر واقعاً بهش وصل شده. متغیر محیطی
-    RAILWAY_PUBLIC_DOMAIN فقط به‌عنوان fallback استفاده می‌شه، چون گاهی موقع بالا اومدن
-    کانتینر هنوز مقداردهی نشده و باعث می‌شد لینک‌ها گاهی با "localhost" ساخته بشن."""
     if request is not None:
         h = request.headers.get("x-forwarded-host") or request.headers.get("host")
         if h:
             h = h.split(":")[0]
-            CONFIG["host"] = h  # کش آخرین دامنه‌ی واقعی دیده‌شده، برای جاهایی که request نداریم (مثل ربات تلگرام)
+            CONFIG["host"] = h
             return h
     return os.environ.get("RAILWAY_PUBLIC_DOMAIN", CONFIG["host"])
 
@@ -240,8 +251,6 @@ def generate_vless_link(
     alpn: str | None = None,
     port: int | None = None,
 ) -> str:
-    """می‌سازد VLESS share-link متناسب با پروتکل انتخاب‌شده (WS کلاسیک یا یکی از مدهای XHTTP).
-    fingerprint / alpn / port در صورت ندادن، از پیش‌فرض‌های خود پروتکل استفاده می‌شوند."""
     fp = (fingerprint or DEFAULT_FINGERPRINT).strip() or DEFAULT_FINGERPRINT
     if fp not in FINGERPRINTS:
         fp = DEFAULT_FINGERPRINT
@@ -263,8 +272,7 @@ def generate_vless_link(
             "alpn": alpn_val,
         }
     else:
-        # xhttp-packet-up / xhttp-stream-up / xhttp-stream-one
-        mode = protocol.replace("xhttp-", "")  # packet-up | stream-up | stream-one
+        mode = protocol.replace("xhttp-", "")
         path = f"/xhttp-siz10/{mode}/{uuid}"
         params = {
             "encryption": "none",
@@ -281,7 +289,6 @@ def generate_vless_link(
     return f"vless://{uuid}@{host}:{port_val}?{query}#{quote(remark)}"
 
 def vless_link_for_link(link: dict, uid: str, host: str) -> str:
-    """generate_vless_link رو با تنظیمات دستی همون کانفیگ (fingerprint/alpn/port) صدا می‌زنه."""
     proto = link.get("protocol", DEFAULT_PROTOCOL)
     return generate_vless_link(
         uid, host,
@@ -305,8 +312,6 @@ def parse_size_to_bytes(value: float, unit: str) -> int:
     return int(value)
 
 def parse_speed_to_bytes(value: float, unit: str) -> int:
-    """محدودیت سرعت رو به بایت‌بر‌ثانیه تبدیل می‌کنه.
-    واحدهای پشتیبانی‌شده: MBIT (مگابیت‌بر‌ثانیه، رایج‌ترین)، KB (کیلوبایت‌بر‌ثانیه)، MB (مگابایت‌بر‌ثانیه)."""
     if value <= 0:
         return 0
     unit = (unit or "MBIT").upper()
@@ -346,13 +351,9 @@ def fmt_bytes(b: int) -> str:
     return f"{b/1024**3:.2f} GB"
 
 def unique_ips_for_uuid(uuid: str) -> set:
-    """آی‌پی‌های یکتای همین لحظه متصل به یک UUID خاص (بر اساس dict اتصالات زنده)."""
     return {c.get("ip") for c in connections.values() if c.get("uuid") == uuid and c.get("ip")}
 
 def is_ip_allowed(link: dict | None, uuid: str, ip: str) -> bool:
-    """محدودیت تعداد آی‌پی/کاربر هم‌زمان برای هر کانفیگ. ip_limit=0 یعنی نامحدود.
-    اگر همین آی‌پی از قبل روی این کانفیگ سشن باز داشته باشه، همیشه مجازه (برای چند اتصال
-    هم‌زمان از یک دستگاه/مرورگر مشکلی پیش نمیاد)."""
     if link is None:
         return False
     limit = int(link.get("ip_limit", 0) or 0)
@@ -364,7 +365,6 @@ def is_ip_allowed(link: dict | None, uuid: str, ip: str) -> bool:
     return len(ips) < limit
 
 def client_ip(request: Request) -> str:
-    """آی‌پی واقعی کلاینت رو با احتساب هدرهای پراکسی (Railway/Cloudflare) برمی‌گردونه."""
     fwd = request.headers.get("x-forwarded-for")
     if fwd:
         return fwd.split(",")[0].strip()
@@ -372,6 +372,10 @@ def client_ip(request: Request) -> str:
     if real_ip:
         return real_ip.strip()
     return request.client.host if request.client else "نامشخص"
+
+def generate_random_password(length: int = 8) -> str:
+    import string
+    return ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
 # ── Default link ──────────────────────────────────────────────────────────────
 _default_link_created = False
@@ -655,16 +659,9 @@ async def get_stats(_=Depends(require_auth)):
 async def get_activity(_=Depends(require_auth)):
     return {"logs": list(activity_logs)[-150:]}
 
-# ── Live connections (with IP) ────────────────────────────────────────────────
+# ── Live connections ────────────────────────────────────────────────────────
 @app.get("/api/connections")
 async def get_connections(_=Depends(require_auth)):
-    """
-    خروجی این endpoint حالا بر اساس IP گروه‌بندی شده:
-    هر آی‌پی فقط یک آیتم نمایش داده می‌شود، با جمع بایت‌های تمام سشن‌های
-    باز روی همان آی‌پی و تعداد سشن‌های فعال آن آی‌پی.
-    raw_count همچنان تعداد واقعی اتصالات باز (سشن‌های خام، مثلاً ۴۰ تا
-    اتصال هم‌زمان یک موبایل) را برمی‌گرداند.
-    """
     async with LINKS_LOCK:
         snap = dict(LINKS)
 
@@ -713,11 +710,11 @@ async def get_connections(_=Depends(require_auth)):
 
     return {
         "connections": result,
-        "count": len(result),          # تعداد آی‌پی‌های یکتا
-        "raw_count": len(connections), # تعداد کل اتصالات باز (بدون گروه‌بندی)
+        "count": len(result),
+        "raw_count": len(connections),
     }
 
-# ── Shared link create/delete helpers (استفاده مشترک API و ربات تلگرام) ───────
+# ── Shared link create/delete helpers ────────────────────────────────────────
 async def make_link(
     label: str = "لینک جدید",
     limit_bytes: int = 0,
@@ -794,7 +791,7 @@ async def set_link_active(uid: str, active: bool) -> dict | None:
     asyncio.create_task(save_state())
     return LINKS[uid]
 
-# ── Sub-group helpers (reusable — هم API وب هم ربات تلگرام از همین‌ها استفاده می‌کنن) ──
+# ── Sub-group helpers ────────────────────────────────────────────────────────
 async def create_sub_group(name: str = "گروه جدید", desc: str = "", password: str = "") -> tuple[str, dict]:
     name = (name or "گروه جدید").strip()[:60]
     desc = (desc or "").strip()[:200]
@@ -815,7 +812,6 @@ async def create_sub_group(name: str = "گروه جدید", desc: str = "", pass
     return sub_id, SUBS[sub_id]
 
 async def set_link_sub(uid: str, sub_id: str | None) -> bool:
-    """یک کانفیگ رو به یک گروه ساب اضافه/منتقل می‌کنه؛ با sub_id=None از گروه فعلیش خارجش می‌کنه."""
     async with LINKS_LOCK:
         if uid not in LINKS:
             return False
@@ -997,32 +993,152 @@ async def delete_link(uid: str, _=Depends(require_auth)):
     return {"ok": True, "deleted": uid}
 
 # ══════════════════════════════════════════════════════════════════════════════
-# VLESS Relay — جدا شده به relay_vless.py (دست نخورده)
+# APIهای مدیریت ربات فروش
 # ══════════════════════════════════════════════════════════════════════════════
 
-from relay_vless import (
-    RELAY_BUF,
-    parse_vless_header,
-    check_and_use,
-    relay_ws_to_tcp,
-    relay_tcp_to_ws,
-    websocket_tunnel,
-)
+@app.get("/api/settings/price")
+async def get_price_per_gb(_=Depends(require_auth)):
+    return {"price_per_gb": PRICE_PER_GB}
 
+@app.post("/api/settings/price")
+async def set_price_per_gb(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    price = float(body.get("price_per_gb", 0))
+    if price <= 0:
+        raise HTTPException(400, "قیمت باید مثبت باشد")
+    global PRICE_PER_GB
+    PRICE_PER_GB = price
+    os.environ["PRICE_PER_GB"] = str(price)
+    asyncio.create_task(save_state())
+    log_activity("settings", f"قیمت هر گیگ تغییر کرد: {price} هزار تومان", "ok")
+    return {"ok": True}
+
+@app.get("/api/settings/card")
+async def get_card_settings(_=Depends(require_auth)):
+    return {"card_number": CARD_NUMBER, "card_owner_name": CARD_OWNER_NAME}
+
+@app.post("/api/settings/card")
+async def set_card_settings(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    new_card = body.get("card_number", "").strip()
+    new_owner = body.get("card_owner_name", "").strip()
+    if not new_card:
+        raise HTTPException(400, "شماره کارت نمی‌تواند خالی باشد")
+    global CARD_NUMBER, CARD_OWNER_NAME
+    CARD_NUMBER = new_card
+    CARD_OWNER_NAME = new_owner if new_owner else CARD_OWNER_NAME
+    os.environ["CARD_NUMBER"] = new_card
+    os.environ["CARD_OWNER_NAME"] = CARD_OWNER_NAME
+    asyncio.create_task(save_state())
+    log_activity("settings", f"اطلاعات کارت تغییر کرد: {new_card} - {CARD_OWNER_NAME}", "ok")
+    return {"ok": True}
+
+@app.post("/api/products")
+async def create_product(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    name = body.get("name", "").strip()
+    if not name:
+        raise HTTPException(400, "نام محصول الزامی است")
+    try:
+        volume_gb = float(body.get("volume_gb", 0))
+        duration_days = int(body.get("duration_days", 0))
+        speed_mbps = float(body.get("speed_mbps", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "مقادیر عددی نامعتبر")
+    if volume_gb <= 0 or duration_days <= 0:
+        raise HTTPException(400, "حجم و مدت باید مثبت باشند")
+    price = volume_gb * PRICE_PER_GB  # قیمت بر اساس حجم و قیمت هر گیگ
+    product_id = secrets.token_hex(8)
+    async with PRODUCTS_LOCK:
+        PRODUCTS[product_id] = {
+            "product_id": product_id,
+            "name": name,
+            "volume_gb": volume_gb,
+            "duration_days": duration_days,
+            "speed_mbps": speed_mbps,
+            "price": price,
+            "created_at": datetime.now().isoformat(),
+        }
+    asyncio.create_task(save_state())
+    log_activity("product", f"محصول «{name}» با قیمت {price} تومان اضافه شد", "ok")
+    return {"ok": True, "product_id": product_id}
+
+@app.get("/api/products")
+async def list_products(_=Depends(require_auth)):
+    async with PRODUCTS_LOCK:
+        return {"products": list(PRODUCTS.values())}
+
+@app.delete("/api/products/{product_id}")
+async def delete_product(product_id: str, _=Depends(require_auth)):
+    async with PRODUCTS_LOCK:
+        if product_id not in PRODUCTS:
+            raise HTTPException(404, "محصول یافت نشد")
+        name = PRODUCTS[product_id]["name"]
+        del PRODUCTS[product_id]
+    asyncio.create_task(save_state())
+    log_activity("product", f"محصول «{name}» حذف شد", "warn")
+    return {"ok": True}
+
+@app.get("/api/admins")
+async def list_admins(_=Depends(require_auth)):
+    return {"admins": list(ADMIN_IDS), "owner_id": OWNER_ID}
+
+@app.post("/api/admins")
+async def add_admin(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    user_id = body.get("user_id")
+    if not user_id:
+        raise HTTPException(400, "user_id الزامی است")
+    user_id = int(user_id)
+    global ADMIN_IDS
+    ADMIN_IDS.add(user_id)
+    os.environ["TELEGRAM_ADMIN_IDS"] = ",".join(str(x) for x in ADMIN_IDS)
+    asyncio.create_task(save_state())
+    log_activity("admin", f"ادمین جدید اضافه شد: {user_id}", "ok")
+    return {"ok": True}
+
+@app.delete("/api/admins/{user_id}")
+async def remove_admin(user_id: int, request: Request, _=Depends(require_auth)):
+    if user_id == OWNER_ID:
+        raise HTTPException(400, "نمی‌توان اونر را حذف کرد")
+    global ADMIN_IDS
+    if user_id not in ADMIN_IDS:
+        raise HTTPException(404, "ادمین یافت نشد")
+    ADMIN_IDS.remove(user_id)
+    os.environ["TELEGRAM_ADMIN_IDS"] = ",".join(str(x) for x in ADMIN_IDS)
+    asyncio.create_task(save_state())
+    log_activity("admin", f"ادمین حذف شد: {user_id}", "warn")
+    return {"ok": True}
+
+@app.get("/api/orders")
+async def list_orders(_=Depends(require_auth)):
+    async with ORDERS_LOCK:
+        return {"orders": list(ORDERS.values())}
+
+@app.patch("/api/orders/{order_id}")
+async def update_order(order_id: str, request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    status = body.get("status")
+    async with ORDERS_LOCK:
+        if order_id not in ORDERS:
+            raise HTTPException(404, "سفارش یافت نشد")
+        if status:
+            ORDERS[order_id]["status"] = status
+    asyncio.create_task(save_state())
+    return {"ok": True}
+
+# ── WebSocket VLESS ──────────────────────────────────────────────────────────
+from relay_vless import websocket_tunnel
 app.add_api_websocket_route("/ws/{uuid}", websocket_tunnel)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# XHTTP — Siz10a XHTTP Ultra (ترابرد جدید، جدا از VLESS/WS، هر ۳ مد)
-# ══════════════════════════════════════════════════════════════════════════════
+# ── XHTTP ────────────────────────────────────────────────────────────────────
 from xhttp_siz10 import router as xhttp_router
 app.include_router(xhttp_router)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ربات مدیریت تلگرام (اختیاری — فقط اگه TELEGRAM_BOT_TOKEN ست شده باشه فعال می‌شه)
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Telegram bot ─────────────────────────────────────────────────────────────
 from telegram_bot import start_bot as _tg_start_bot, stop_bot as _tg_stop_bot
 
-# ── HTTP Proxy ────────────────────────────────────────────────────────────────
+# ── HTTP Proxy ───────────────────────────────────────────────────────────────
 _HOP = {"connection","keep-alive","proxy-authenticate","proxy-authorization",
         "te","trailers","transfer-encoding","upgrade","content-encoding","content-length"}
 
@@ -1111,7 +1227,7 @@ async def public_sub_data(uuid_key: str, request: Request):
         "links": links_out,
     }
 
-# ── HTML Pages (login + dashboard) ───────────────────────────────────────────
+# ── HTML Pages ───────────────────────────────────────────────────────────────
 from pages import LOGIN_HTML, DASHBOARD_HTML
 
 @app.get("/login", response_class=HTMLResponse)
