@@ -1,7 +1,6 @@
 # pages.py  -  Tk-Ui v9.5
 # شامل: LOGIN_HTML, DASHBOARD_HTML, get_public_page_html()
 
-# لوگوی Tk-Ui (به‌صورت text-based، بدون عکس)
 LOGO_HTML = '<span style="font-weight:900;font-size:22px;color:var(--accent);">Tk-Ui</span>'
 LOGO_HTML_SMALL = '<span style="font-weight:900;font-size:16px;color:var(--accent);">Tk-Ui</span>'
 
@@ -819,6 +818,7 @@ a{color:inherit;text-decoration:none}
     <div class="nav-it" data-pg="subscriptions"><i class="ti ti-rss"></i> سابسکریپشن</div>
     <div class="nav-it" data-pg="traffic"><i class="ti ti-chart-area"></i> ترافیک</div>
     <div class="nav-it" data-pg="connections"><i class="ti ti-plug-connected"></i> اتصالات <span class="nav-badge" id="conns-nb">0</span></div>
+    <div class="nav-it" data-pg="bot"><i class="ti ti-robot"></i> ربات</div>
     <div class="nav-sec">سیستم</div>
     <div class="nav-it" data-pg="security"><i class="ti ti-shield-lock"></i> امنیت</div>
     <div class="nav-it" data-pg="logs"><i class="ti ti-history"></i> لاگ فعالیت‌ها</div>
@@ -1263,6 +1263,113 @@ a{color:inherit;text-decoration:none}
           <button class="pw-eye" type="button" onclick="togglePwField('cp-cf',this)"><i class="ti ti-eye"></i></button>
         </div>
         <button class="pw-submit" onclick="changePw()"><i class="ti ti-shield-check"></i> ذخیره رمز جدید</button>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ===== صفحه مدیریت ربات ===== -->
+<section class="pg" id="pg-bot">
+  <div class="topbar">
+    <div><div class="tb-title"><i class="ti ti-robot"></i> مدیریت ربات فروش</div>
+    <div class="tb-sub">تنظیمات، محصولات، ادمین‌ها و سفارشات</div></div>
+    <div class="tb-right">
+      <span class="badge bg-green"><span class="dot dg pulse"></span> آنلاین</span>
+      <button class="btn btn-p btn-sm" onclick="loadBotPanel()"><i class="ti ti-refresh"></i> رفرش</button>
+    </div>
+  </div>
+
+  <div class="metrics" style="grid-template-columns: repeat(4,1fr); margin-bottom:18px">
+    <div class="metric"><div class="m-icon"><i class="ti ti-package"></i></div><div class="m-label">محصولات</div><div class="m-val" id="bot-products-count">—</div></div>
+    <div class="metric"><div class="m-icon"><i class="ti ti-shopping-cart"></i></div><div class="m-label">سفارشات</div><div class="m-val" id="bot-orders-count">—</div></div>
+    <div class="metric"><div class="m-icon"><i class="ti ti-users"></i></div><div class="m-label">ادمین‌ها</div><div class="m-val" id="bot-admins-count">—</div></div>
+    <div class="metric"><div class="m-icon"><i class="ti ti-credit-card"></i></div><div class="m-label">شماره کارت</div><div class="m-val" style="font-size:14px" id="bot-card-number">—</div></div>
+  </div>
+
+  <div class="traf-range-tabs" style="margin-bottom:16px; display:flex; gap:4px; background:var(--accent-d); padding:3px; border-radius:10px; border:1px solid var(--card-b); width:fit-content">
+    <button class="traf-range-tab on" data-tab="bot-products" onclick="switchBotTab('products')">📦 محصولات</button>
+    <button class="traf-range-tab" data-tab="bot-orders" onclick="switchBotTab('orders')">📋 سفارشات</button>
+    <button class="traf-range-tab" data-tab="bot-admins" onclick="switchBotTab('admins')">👥 ادمین‌ها</button>
+    <button class="traf-range-tab" data-tab="bot-settings" onclick="switchBotTab('settings')">⚙️ تنظیمات</button>
+  </div>
+
+  <div id="bot-tab-products" class="bot-tab-content">
+    <div class="create-panel" style="margin-bottom:16px">
+      <div class="cp-head">
+        <div class="cp-head-icon"><i class="ti ti-square-rounded-plus"></i></div>
+        <div class="cp-head-text">
+          <div class="cp-head-title">افزودن محصول جدید</div>
+          <div class="cp-head-sub">نام، حجم، مدت، سرعت و قیمت را وارد کنید</div>
+        </div>
+      </div>
+      <div class="cp-body">
+        <div class="cp-row">
+          <div class="cp-block"><div class="cp-block-label"><i class="ti ti-tag"></i> نام محصول</div><input class="cp-input-full" id="bot-product-name" placeholder="مثلاً: کانفیگ استاندارد"></div>
+          <div class="cp-block"><div class="cp-block-label"><i class="ti ti-database"></i> حجم (GB)</div><input class="cp-input-full" id="bot-product-volume" type="number" placeholder="مثلاً: 50" value="50"></div>
+        </div>
+        <div class="cp-row">
+          <div class="cp-block"><div class="cp-block-label"><i class="ti ti-clock"></i> مدت (روز)</div><input class="cp-input-full" id="bot-product-duration" type="number" placeholder="مثلاً: 30" value="30"></div>
+          <div class="cp-block"><div class="cp-block-label"><i class="ti ti-gauge"></i> سرعت (Mbps, 0 = نامحدود)</div><input class="cp-input-full" id="bot-product-speed" type="number" placeholder="مثلاً: 100" value="0"></div>
+        </div>
+        <div class="cp-row">
+          <div class="cp-block"><div class="cp-block-label"><i class="ti ti-currency-toman"></i> قیمت (تومان)</div><input class="cp-input-full" id="bot-product-price" type="number" placeholder="مثلاً: 150000" value="150000"></div>
+          <div class="cp-block" style="display:flex; align-items:flex-end; padding-bottom:14px">
+            <button class="cp-submit-btn" onclick="addProduct()" style="width:100%; justify-content:center"><i class="ti ti-plus"></i> افزودن محصول</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="bot-products-list" class="cfg-grid"></div>
+  </div>
+
+  <div id="bot-tab-orders" class="bot-tab-content" style="display:none">
+    <div id="bot-orders-list" class="cfg-grid"></div>
+  </div>
+
+  <div id="bot-tab-admins" class="bot-tab-content" style="display:none">
+    <div class="create-panel" style="margin-bottom:16px">
+      <div class="cp-head">
+        <div class="cp-head-icon"><i class="ti ti-user-plus"></i></div>
+        <div class="cp-head-text">
+          <div class="cp-head-title">افزودن ادمین جدید</div>
+          <div class="cp-head-sub">آیدی عددی کاربر تلگرام را وارد کنید</div>
+        </div>
+      </div>
+      <div class="cp-body">
+        <div class="cp-row">
+          <div class="cp-block"><div class="cp-block-label"><i class="ti ti-id-badge"></i> آیدی عددی</div><input class="cp-input-full" id="bot-admin-id" placeholder="مثلاً: 123456789"></div>
+          <div class="cp-block" style="display:flex; align-items:flex-end; padding-bottom:14px">
+            <button class="cp-submit-btn" onclick="addAdmin()" style="width:100%; justify-content:center"><i class="ti ti-plus"></i> افزودن ادمین</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="bot-admins-list" class="cfg-grid"></div>
+  </div>
+
+  <div id="bot-tab-settings" class="bot-tab-content" style="display:none">
+    <div class="srv-panel" style="max-width:500px">
+      <div class="srv-hero">
+        <div class="srv-hero-icon"><i class="ti ti-credit-card"></i></div>
+        <div class="srv-hero-text">
+          <div class="srv-hero-domain">شماره کارت</div>
+          <div class="srv-hero-sub">شماره کارتی که به کاربران نمایش داده می‌شود</div>
+        </div>
+      </div>
+      <div class="srv-tiles">
+        <div class="srv-tile" style="grid-column:1/-1">
+          <div class="srv-tile-icon"><i class="ti ti-card"></i></div>
+          <div class="srv-tile-text">
+            <div class="srv-tile-label">شماره کارت فعلی</div>
+            <div class="srv-tile-val" id="bot-card-display">—</div>
+          </div>
+        </div>
+        <div class="srv-tile" style="grid-column:1/-1">
+          <div class="srv-tile-text" style="width:100%">
+            <div class="srv-tile-label">تغییر شماره کارت</div>
+            <input class="cp-input-full" id="bot-new-card" placeholder="شماره کارت جدید را وارد کنید" style="margin-top:6px">
+            <button class="cp-submit-btn" onclick="updateCard()" style="margin-top:10px; width:100%; justify-content:center"><i class="ti ti-check"></i> به‌روزرسانی</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1945,6 +2052,197 @@ function wsLog(c,m){const l=document.getElementById('ws-log'),p=document.createE
 function wsConn(){const u=document.getElementById('ws-uuid').value.trim();if(!u){toast('UUID را وارد کنید','err');return}const url=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws/'+u;wsLog('info','اتصال: '+url);ws=new WebSocket(url);ws.onopen=()=>wsLog('ok','✓ متصل - UUID معتبر');ws.onerror=()=>wsLog('err','✗ خطا - UUID نامعتبر یا غیرفعال');ws.onmessage=m=>wsLog('info','دریافت '+(m.data.size||m.data.length)+' byte');ws.onclose=e=>wsLog('err','قطع ('+e.code+')'+(e.code===1008?' - دسترسی رد شد':''))}
 function wsSend(){const m=document.getElementById('ws-msg').value;if(!m||!ws||ws.readyState!==1)return;ws.send(m);wsLog('sent','ارسال: '+m);document.getElementById('ws-msg').value=''}
 function wsDisc(){if(ws)ws.close()}
+
+// ===== مدیریت ربات =====
+let botData = {};
+
+async function loadBotPanel() {
+  try {
+    const [products, orders, admins, card] = await Promise.all([
+      fetch('/api/products').then(r=>r.json()),
+      fetch('/api/orders').then(r=>r.json()),
+      fetch('/api/admins').then(r=>r.json()),
+      fetch('/api/settings/card').then(r=>r.json())
+    ]);
+    botData = { products, orders, admins, card };
+    document.getElementById('bot-products-count').textContent = products.products?.length || 0;
+    document.getElementById('bot-orders-count').textContent = orders.orders?.length || 0;
+    document.getElementById('bot-admins-count').textContent = admins.admins?.length || 0;
+    document.getElementById('bot-card-number').textContent = card.card_number || '—';
+    document.getElementById('bot-card-display').textContent = card.card_number || '—';
+    renderProducts(products.products || []);
+    renderOrders(orders.orders || []);
+    renderAdmins(admins.admins || []);
+  } catch(e) { toast('خطا در بارگذاری اطلاعات ربات','err'); }
+}
+
+function renderProducts(products) {
+  const el = document.getElementById('bot-products-list');
+  if (!products.length) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-package-off"></i><p>هیچ محصولی وجود ندارد</p></div>';
+    return;
+  }
+  el.innerHTML = products.map(p => `
+    <div class="cfg-card">
+      <div class="cfg-row" style="padding:14px 18px">
+        <div class="cfg-identity" style="flex:2">
+          <div class="cfg-label">${esc(p.name)}</div>
+          <div class="cfg-sub-meta">${p.volume_gb} GB · ${p.duration_days} روز · ${p.speed_mbps} Mbps · ${p.price.toLocaleString()} تومان</div>
+        </div>
+        <button class="btn btn-d" onclick="deleteProduct('${p.product_id || p.id || ''}')"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderOrders(orders) {
+  const el = document.getElementById('bot-orders-list');
+  const pending = orders.filter(o => o.status === 'pending');
+  if (!pending.length) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-inbox"></i><p>هیچ سفارش در انتظاری وجود ندارد</p></div>';
+    return;
+  }
+  el.innerHTML = pending.map(o => `
+    <div class="cfg-card">
+      <div class="cfg-row" style="padding:14px 18px">
+        <div class="cfg-identity" style="flex:2">
+          <div class="cfg-label">#${o.order_id}</div>
+          <div class="cfg-sub-meta">کاربر: ${o.user_id} · ${o.volume}GB · ${o.duration} روز</div>
+        </div>
+        <div style="display:flex; gap:5px">
+          <button class="btn btn-p" onclick="approveOrder('${o.order_id}')"><i class="ti ti-check"></i></button>
+          <button class="btn btn-d" onclick="rejectOrder('${o.order_id}')"><i class="ti ti-x"></i></button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderAdmins(admins) {
+  const el = document.getElementById('bot-admins-list');
+  if (!admins.length) {
+    el.innerHTML = '<div class="empty"><i class="ti ti-users-off"></i><p>هیچ ادمینی وجود ندارد</p></div>';
+    return;
+  }
+  const owner = botData.admins?.owner_id;
+  el.innerHTML = admins.map(id => `
+    <div class="cfg-card">
+      <div class="cfg-row" style="padding:14px 18px">
+        <div class="cfg-identity" style="flex:2">
+          <div class="cfg-label">${id} ${id === owner ? '👑 (اونر)' : ''}</div>
+        </div>
+        ${id !== owner ? `<button class="btn btn-d" onclick="removeAdmin('${id}')"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function switchBotTab(tab) {
+  document.querySelectorAll('.bot-tab-content').forEach(el => el.style.display = 'none');
+  document.getElementById(`bot-tab-${tab}`).style.display = 'block';
+  document.querySelectorAll('.traf-range-tab').forEach(el => el.classList.remove('on'));
+  document.querySelector(`.traf-range-tab[data-tab="bot-${tab}"]`).classList.add('on');
+}
+
+async function addProduct() {
+  const name = document.getElementById('bot-product-name').value.trim();
+  const volume_gb = parseFloat(document.getElementById('bot-product-volume').value) || 0;
+  const duration_days = parseInt(document.getElementById('bot-product-duration').value) || 0;
+  const speed_mbps = parseFloat(document.getElementById('bot-product-speed').value) || 0;
+  const price = parseFloat(document.getElementById('bot-product-price').value) || 0;
+  if (!name || volume_gb <= 0 || duration_days <= 0 || price <= 0) {
+    toast('لطفاً تمام فیلدها را به‌درستی پر کنید', 'err');
+    return;
+  }
+  try {
+    const r = await fetch('/api/products', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, volume_gb, duration_days, speed_mbps, price })
+    });
+    if (!r.ok) throw new Error();
+    toast('محصول اضافه شد ✓','ok');
+    document.getElementById('bot-product-name').value = '';
+    loadBotPanel();
+  } catch(e) { toast('خطا در افزودن محصول','err'); }
+}
+
+async function deleteProduct(productId) {
+  if (!confirm('آیا از حذف این محصول مطمئن هستید؟')) return;
+  try {
+    await fetch(`/api/products/${productId}`, { method: 'DELETE' });
+    toast('محصول حذف شد ✓','ok');
+    loadBotPanel();
+  } catch(e) { toast('خطا','err'); }
+}
+
+async function addAdmin() {
+  const user_id = document.getElementById('bot-admin-id').value.trim();
+  if (!user_id) { toast('لطفاً آیدی عددی را وارد کنید','err'); return; }
+  try {
+    const r = await fetch('/api/admins', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id: parseInt(user_id) })
+    });
+    if (!r.ok) throw new Error();
+    toast('ادمین اضافه شد ✓','ok');
+    document.getElementById('bot-admin-id').value = '';
+    loadBotPanel();
+  } catch(e) { toast('خطا در افزودن ادمین','err'); }
+}
+
+async function removeAdmin(userId) {
+  if (!confirm('آیا از حذف این ادمین مطمئن هستید؟')) return;
+  try {
+    await fetch(`/api/admins/${userId}`, { method: 'DELETE' });
+    toast('ادمین حذف شد ✓','ok');
+    loadBotPanel();
+  } catch(e) { toast('خطا','err'); }
+}
+
+async function updateCard() {
+  const card = document.getElementById('bot-new-card').value.trim();
+  if (!card) { toast('شماره کارت را وارد کنید','err'); return; }
+  try {
+    const r = await fetch('/api/settings/card', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ card_number: card })
+    });
+    if (!r.ok) throw new Error();
+    toast('شماره کارت به‌روزرسانی شد ✓','ok');
+    document.getElementById('bot-new-card').value = '';
+    loadBotPanel();
+  } catch(e) { toast('خطا','err'); }
+}
+
+async function approveOrder(orderId) {
+  if (!confirm('تایید این سفارش؟')) return;
+  try {
+    await fetch(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'confirmed' })
+    });
+    toast('سفارش تأیید شد ✓','ok');
+    loadBotPanel();
+  } catch(e) { toast('خطا','err'); }
+}
+
+async function rejectOrder(orderId) {
+  if (!confirm('رد این سفارش؟')) return;
+  try {
+    await fetch(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ status: 'rejected' })
+    });
+    toast('سفارش رد شد','ok');
+    loadBotPanel();
+  } catch(e) { toast('خطا','err'); }
+}
+
 document.addEventListener('DOMContentLoaded',async()=>{
   await checkAuth();
   initCharts();
@@ -1963,11 +2261,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
 </script>
 </body></html>"""
 
-# جایگزینی نهایی لوگو در صفحات استاتیک (LOGIN_HTML / DASHBOARD_HTML) — دیگر نیازی نیست
-# چون لوگو را text-based کردیم.
-
 def get_public_page_html(uuid_key: str) -> str:
-    """صفحه پابلیک ساب v3 — طراحی حرفه‌ای‌تر: لینک کانفیگ پنهان با دکمه نمایش، صفحه‌ی رمز با طراحی ویژه"""
     return f"""<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -2043,7 +2337,6 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .cfg-title i{{color:var(--accent);font-size:15px}}
 .cfg-grid{{display:grid;gap:13px}}
 
-/* ── کارت کانفیگ به‌شکل بلیط دسترسی (signature element) ── */
 .cfg-card{{background:var(--card);border:1px solid var(--card-b);border-radius:18px;transition:all .2s;position:relative;overflow:hidden}}
 .cfg-card:hover{{border-color:var(--card-bh);box-shadow:var(--shadow)}}
 .cfg-top{{padding:17px 19px 15px;position:relative}}
@@ -2064,7 +2357,6 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .ubar-f{{height:100%;border-radius:4px;transition:width .5s ease}}
 .utxt{{font-size:10px;color:var(--t3);display:flex;justify-content:space-between}}
 
-/* خط جداکننده‌ی بلیطی با دندانه‌های گرد، شبیه پاره‌خط بُرد بلیط */
 .cfg-tear{{position:relative;height:0;border-top:1.5px dashed var(--card-b);margin:0 19px}}
 .cfg-tear::before,.cfg-tear::after{{content:'';position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--bg);transform:translateY(-50%);border:1px solid var(--card-b)}}
 .cfg-tear::before{{right:-28px}}
@@ -2094,7 +2386,6 @@ html,body{{min-height:100%;background:var(--bg);font-family:var(--serif);color:v
 .dot{{width:5px;height:5px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}}
 @keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:.25}}}}
 
-/* ── صفحه‌ی قفل / رمز ── */
 .lock-stage{{display:flex;align-items:center;justify-content:center;min-height:78vh;padding:20px 0}}
 .lock-card{{background:var(--card);border:1px solid var(--card-b);border-radius:26px;padding:0;text-align:center;max-width:380px;width:100%;box-shadow:var(--shadow);overflow:hidden;position:relative}}
 .lock-banner{{background:linear-gradient(150deg,rgba(249,115,22,.16),rgba(249,115,22,.02) 70%);padding:38px 30px 26px;position:relative}}
