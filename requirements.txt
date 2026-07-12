@@ -5,3 +5,5 @@ websockets==12.0
 aiofiles>=23.2.1
 httpx[http2]
 aiogram==3.4.1
+pydantic==2.5.0
+pydantic-core==2.14.5
