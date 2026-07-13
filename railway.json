@@ -1,5 +1,5 @@
 {
   "build": {
-    "pythonVersion": "3.12"
+    "builder": "DOCKERFILE"
   }
 }
