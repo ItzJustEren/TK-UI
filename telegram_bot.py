@@ -1,5 +1,6 @@
 # telegram_bot.py
 # ربات فروش Tk-Ui با Aiogram — Long Polling
+# شامل: ریمیت، تست رایگان، سطح‌بندی، بازخورد، تمدید اشتراک، سیستم رد با دلیل
 
 import asyncio
 import os
@@ -46,6 +47,7 @@ if not REQUIRED_CHANNEL.startswith("@"):
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+# ── وضعیت‌های FSM ──────────────────────────────────────────────────────────
 class BuyStates(StatesGroup):
     waiting_receipt = State()
     waiting_volume = State()
@@ -54,6 +56,11 @@ class BuyStates(StatesGroup):
 class FeedbackStates(StatesGroup):
     waiting_feedback = State()
 
+class AdminStates(StatesGroup):
+    waiting_reject_reason = State()
+    waiting_reject_reason_other = State()
+
+# ── توابع کمکی ──────────────────────────────────────────────────────────────
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
@@ -64,7 +71,7 @@ async def check_channel_membership(user_id: int) -> bool:
     except Exception:
         return False
 
-# ── دکمه‌های شیشه‌ای ────────────────────────────────────────────────────────
+# ── دکمه‌های شیشه‌ای با یونیکد و رنگ‌بندی ─────────────────────────────────
 
 def get_main_menu_keyboard(is_admin_user: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -209,6 +216,28 @@ def get_support_keyboard() -> InlineKeyboardMarkup:
     
     return builder.as_markup()
 
+def get_products_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for pid, prod in PRODUCTS.items():
+        builder.button(
+            text=f"{prod['name']} — {prod['volume_gb']}GB / {prod['duration_days']} روز — {prod['price']:,} تومان",
+            callback_data=f"buy:{pid}"
+        )
+    builder.adjust(1)
+    builder.row(InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="main_menu"))
+    return builder.as_markup()
+
+def get_reject_reason_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🖼  رسید فیک", callback_data="reject_reason:fake"),
+        InlineKeyboardButton(text="⏰  دیرتر از زمان معین", callback_data="reject_reason:late")
+    )
+    builder.row(
+        InlineKeyboardButton(text="📝  دلیل دیگر (دستی)", callback_data="reject_reason:other")
+    )
+    return builder.as_markup()
+
 # ── Start ────────────────────────────────────────────────────────────────────
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
@@ -271,17 +300,6 @@ async def callback_buy(callback: CallbackQuery):
         reply_markup=get_products_keyboard(),
         parse_mode="Markdown"
     )
-
-def get_products_keyboard() -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for pid, prod in PRODUCTS.items():
-        builder.button(
-            text=f"{prod['name']} — {prod['volume_gb']}GB / {prod['duration_days']} روز — {prod['price']:,} تومان",
-            callback_data=f"buy:{pid}"
-        )
-    builder.adjust(1)
-    builder.row(InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="main_menu"))
-    return builder.as_markup()
 
 @dp.callback_query(F.data.startswith("buy:"))
 async def callback_product_select(callback: CallbackQuery, state: FSMContext):
@@ -454,7 +472,7 @@ async def send_order_to_admins(order_id: str, user_id: int, product: dict, user_
         except Exception:
             pass
 
-# ── تایید/رد سفارش ─────────────────────────────────────────────────────────
+# ── تایید سفارش ──────────────────────────────────────────────────────────────
 @dp.callback_query(F.data.startswith("approve:"))
 async def callback_approve_order(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -575,22 +593,125 @@ async def callback_approve_order(callback: CallbackQuery):
     await callback.message.edit_text(f"✅ سفارش #{order_id} تأیید و کانفیگ ارسال شد.")
     await callback.answer()
 
+# ── رد سفارش با دلیل ────────────────────────────────────────────────────────
 @dp.callback_query(F.data.startswith("reject:"))
-async def callback_reject_order(callback: CallbackQuery):
+async def callback_reject_order(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
         return
+    
     order_id = callback.data.split(":")[1]
     order = ORDERS.get(order_id)
     if not order or order["status"] != "pending":
         await callback.answer("سفارش یافت نشد.", show_alert=True)
         return
-    async with ORDERS_LOCK:
-        ORDERS[order_id]["status"] = "rejected"
-    asyncio.create_task(save_state())
-    await callback.message.edit_text(f"❌ سفارش #{order_id} رد شد.")
+    
+    await state.update_data(reject_order_id=order_id)
+    await state.set_state(AdminStates.waiting_reject_reason)
+    
+    await callback.message.edit_text(
+        f"❌ لطفاً دلیل رد سفارش #{order_id} را انتخاب کنید:",
+        reply_markup=get_reject_reason_keyboard()
+    )
     await callback.answer()
 
+@dp.callback_query(AdminStates.waiting_reject_reason, F.data.startswith("reject_reason:"))
+async def callback_reject_reason(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
+        return
+    
+    reason_code = callback.data.split(":")[1]
+    data = await state.get_data()
+    order_id = data.get("reject_order_id")
+    order = ORDERS.get(order_id)
+    
+    if not order:
+        await callback.answer("❌ سفارش یافت نشد.", show_alert=True)
+        await state.clear()
+        return
+    
+    if reason_code == "other":
+        await callback.message.edit_text(
+            "✏️ لطفاً دلیل رد سفارش را به‌صورت یک پیام متنی ارسال کنید:"
+        )
+        await state.set_state(AdminStates.waiting_reject_reason_other)
+        await callback.answer()
+        return
+    
+    # دلایل از پیش تعیین شده
+    reason_texts = {
+        "fake": "رسید ارسالی شما نامعتبر یا فیک تشخیص داده شده است.",
+        "late": "رسید شما دیرتر از زمان معین (۱ ساعت) ارسال شده است."
+    }
+    reason = reason_texts.get(reason_code, "به دلیل نامشخص")
+    
+    await process_reject_order(order_id, reason, callback.message)
+    await state.clear()
+    await callback.answer()
+
+@dp.message(AdminStates.waiting_reject_reason_other)
+async def handle_reject_reason_other(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        await message.answer("⛔ دسترسی ندارید.")
+        return
+    
+    reason = message.text.strip()
+    if not reason:
+        await message.answer("❌ لطفاً یک متن معتبر ارسال کنید.")
+        return
+    
+    data = await state.get_data()
+    order_id = data.get("reject_order_id")
+    
+    if not order_id:
+        await message.answer("❌ سفارش یافت نشد.")
+        await state.clear()
+        return
+    
+    await process_reject_order(order_id, reason, message)
+    await state.clear()
+
+async def process_reject_order(order_id: str, reason: str, msg: types.Message):
+    order = ORDERS.get(order_id)
+    if not order:
+        await msg.answer("❌ سفارش یافت نشد.")
+        return
+    
+    # به‌روزرسانی وضعیت
+    async with ORDERS_LOCK:
+        ORDERS[order_id]["status"] = "rejected"
+        ORDERS[order_id]["reject_reason"] = reason
+    asyncio.create_task(save_state())
+    
+    # ارسال پیام به کاربر
+    user_id = order["user_id"]
+    product = PRODUCTS.get(order["product_id"])
+    
+    try:
+        await bot.send_message(
+            chat_id=user_id,
+            text=(
+                f"❌ **درخواست خرید شما رد شد**\n\n"
+                f"🆔 سفارش: #{order_id}\n"
+                f"📦 محصول: {product['name'] if product else 'نامشخص'}\n"
+                f"💰 مبلغ: {order['price']:,} تومان\n\n"
+                f"📌 **دلیل رد:**\n{reason}\n\n"
+                f"💡 در صورت اعتراض، لطفاً با پشتیبان تماس بگیرید:\n"
+                f"📞 @ItzJustEren"
+            ),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.warning(f"ارسال پیام رد به کاربر ناموفق: {e}")
+    
+    await msg.edit_text(
+        f"✅ سفارش #{order_id} با موفقیت رد شد.\n"
+        f"📌 دلیل: {reason}\n"
+        f"👤 کاربر مطلع شد."
+    )
+
+# ── دریافت مجدد لینک VLESS ──────────────────────────────────────────────────
 @dp.callback_query(F.data.startswith("get_vless:"))
 async def callback_get_vless(callback: CallbackQuery):
     uuid = callback.data.split(":")[1]
@@ -681,7 +802,6 @@ async def callback_renew_confirm(callback: CallbackQuery, state: FSMContext):
     user_code = generate_user_code()
     USER_CODES[callback.from_user.id] = {"code": user_code, "created_at": datetime.now()}
     
-    # ایجاد سفارش تمدید جدید
     new_order_id = secrets.token_hex(8).upper()
     new_order = {
         "order_id": new_order_id,
@@ -884,7 +1004,6 @@ async def handle_feedback(message: types.Message, state: FSMContext):
     FEEDBACKS.append(feedback_data)
     asyncio.create_task(save_state())
     
-    # ارسال به ادمین برای تایید
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(
@@ -989,9 +1108,7 @@ async def callback_admin_panel(callback: CallbackQuery):
     await callback.message.edit_text("⚙️ **پنل مدیریت ربات:**", reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
-# ── بقیه هندلرهای ادمین (مدیریت محصولات، ادمین‌ها، تنظیمات، آمار، سفارشات) ──
-# این بخش‌ها مثل قبل هستن و فقط نام StateFilter اصلاح شده
-
+# ── مدیریت محصولات ──────────────────────────────────────────────────────────
 @dp.callback_query(F.data == "admin_products")
 async def callback_admin_products(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -1085,6 +1202,7 @@ async def callback_del_prod(callback: CallbackQuery):
             await callback.message.edit_text("❌ محصول یافت نشد.")
     await callback.answer()
 
+# ── مدیریت ادمین‌ها ──────────────────────────────────────────────────────────
 @dp.callback_query(F.data == "admin_admins")
 async def callback_admin_admins(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -1128,6 +1246,7 @@ async def handle_add_admin(message: types.Message, state: FSMContext):
         await message.answer("❌ آیدی باید عددی باشد.")
     await state.clear()
 
+# ── تنظیمات ──────────────────────────────────────────────────────────────────
 @dp.callback_query(F.data == "admin_settings")
 async def callback_admin_settings(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -1220,6 +1339,7 @@ async def handle_price(message: types.Message, state: FSMContext):
         await message.answer(f"❌ خطا: {e}\nلطفاً یک عدد معتبر وارد کنید.")
     await state.clear()
 
+# ── آمار ──────────────────────────────────────────────────────────────────────
 @dp.callback_query(F.data == "admin_stats")
 async def callback_admin_stats(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -1243,6 +1363,7 @@ async def callback_admin_stats(callback: CallbackQuery):
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
+# ── سفارشات ──────────────────────────────────────────────────────────────────
 @dp.callback_query(F.data.startswith("admin_orders:"))
 async def callback_admin_orders(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
