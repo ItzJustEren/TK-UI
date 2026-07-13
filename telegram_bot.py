@@ -6,12 +6,13 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import quote
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.exceptions import TelegramBadRequest
 
@@ -19,8 +20,9 @@ from main import (
     LINKS, LINKS_LOCK, SUBS, SUBS_LOCK,
     PRODUCTS, PRODUCTS_LOCK, ORDERS, ORDERS_LOCK,
     CARD_NUMBER, CARD_OWNER_NAME, PRICE_PER_GB, ADMIN_IDS, OWNER_ID,
+    TEST_USERS, USER_CODES, REYMIT_LINKS, FEEDBACKS, TUTORIAL_CHANNEL, ADMIN_GROUP_ID,
     make_link, create_sub_group, set_link_sub,
-    get_host, generate_random_password,
+    get_host, generate_random_password, generate_user_code, calculate_user_level,
     is_link_allowed, fmt_bytes, vless_link_for_link,
     log_activity, save_state, logger,
     DEFAULT_PROTOCOL, DEFAULT_FINGERPRINT,
@@ -47,6 +49,10 @@ dp = Dispatcher()
 class BuyStates(StatesGroup):
     waiting_receipt = State()
     waiting_volume = State()
+    waiting_renew_receipt = State()
+
+class FeedbackStates(StatesGroup):
+    waiting_feedback = State()
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
@@ -58,52 +64,150 @@ async def check_channel_membership(user_id: int) -> bool:
     except Exception:
         return False
 
-def get_products_keyboard() -> InlineKeyboardMarkup:
+# ── دکمه‌های شیشه‌ای ────────────────────────────────────────────────────────
+
+def get_main_menu_keyboard(is_admin_user: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for pid, prod in PRODUCTS.items():
-        builder.button(
-            text=f"{prod['name']} — {prod['volume_gb']}GB / {prod['duration_days']} روز — {prod['price']:,} تومان",
-            callback_data=f"buy:{pid}"
+    
+    # خرید اشتراک جدید (سبز - با رنگ استایل)
+    builder.row(
+        InlineKeyboardButton(
+            text="🛍️  خرید اشتراک جدید",
+            callback_data="buy"
         )
-    builder.adjust(1)
-    builder.row(InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="main_menu"))
+    )
+    
+    # اشتراک‌های من/تمدید (آبی)
+    builder.row(
+        InlineKeyboardButton(
+            text="📂  اشتراک‌های من",
+            callback_data="my_subscriptions"
+        )
+    )
+    
+    # دکمه‌های بی‌رنگ با آیکون یونیکد
+    builder.row(
+        InlineKeyboardButton(
+            text="💡  آموزش‌ها",
+            callback_data="tutorials"
+        ),
+        InlineKeyboardButton(
+            text="👤  حساب کاربری",
+            callback_data="my_account"
+        )
+    )
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="🧪  تست رایگان",
+            callback_data="test_service"
+        ),
+        InlineKeyboardButton(
+            text="📞  پشتیبانی",
+            callback_data="support"
+        )
+    )
+    
+    # دکمه‌های قرمز (بازخورد)
+    builder.row(
+        InlineKeyboardButton(
+            text="✍️  ارسال بازخورد",
+            callback_data="send_feedback"
+        )
+    )
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="💬  بازخورد کاربران",
+            callback_data="view_feedbacks"
+        )
+    )
+    
+    if is_admin_user:
+        builder.row(
+            InlineKeyboardButton(
+                text="⚙️  پنل ادمین",
+                callback_data="admin_panel"
+            )
+        )
+    
     return builder.as_markup()
 
-async def send_order_to_admins(order_id: str, user_id: int, product: dict, receipt_msg: types.Message):
-    order = ORDERS.get(order_id)
-    if not order:
-        return
-    user = await bot.get_chat(user_id)
-    username = user.username or "ندارد"
-    full_name = user.full_name or "کاربر"
-
-    text = (
-        f"🆕 سفارش جدید #{order_id}\n"
-        f"👤 کاربر: {full_name} (@{username}) [ID: {user_id}]\n"
-        f"📦 محصول: {product['name']}\n"
-        f"📊 حجم: {product['volume_gb']} GB\n"
-        f"⏳ مدت: {product['duration_days']} روز\n"
-        f"🚀 سرعت: {product['speed_mbps']} Mbps {'(نامحدود)' if product['speed_mbps'] == 0 else ''}\n"
-        f"💰 قیمت: {product['price']:,} تومان\n"
-        f"🕒 زمان سفارش: {order['created_at']}\n"
-        f"🖼 رسید:"
+def get_subscription_menu_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="📥  دریافت لینک اشتراک‌ها",
+            callback_data="get_sub_links"
+        )
     )
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="🔄  تمدید اشتراک",
+            callback_data="renew_subscription"
+        )
+    )
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="🔙  بازگشت به منوی اصلی",
+            callback_data="main_menu"
+        )
+    )
+    
+    return builder.as_markup()
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ تایید", callback_data=f"approve:{order_id}"),
-         InlineKeyboardButton(text="❌ رد", callback_data=f"reject:{order_id}")]
-    ])
-
-    for admin_id in ADMIN_IDS:
-        try:
-            await bot.send_photo(
-                chat_id=admin_id,
-                photo=receipt_msg.photo[-1].file_id,
-                caption=text,
-                reply_markup=keyboard
+def get_renew_subscription_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    user_orders = [o for o in ORDERS.values() if o["user_id"] == user_id and o["status"] == "confirmed"]
+    
+    if not user_orders:
+        builder.row(
+            InlineKeyboardButton(
+                text="❌  شما اشتراک فعالی ندارید",
+                callback_data="no_subscription"
             )
-        except Exception:
-            pass
+        )
+    else:
+        for order in user_orders:
+            product = PRODUCTS.get(order["product_id"])
+            if product:
+                builder.row(
+                    InlineKeyboardButton(
+                        text=f"📦  {product['name']} — {product['volume_gb']}GB",
+                        callback_data=f"renew:{order['order_id']}"
+                    )
+                )
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="🔙  بازگشت",
+            callback_data="my_subscriptions"
+        )
+    )
+    
+    return builder.as_markup()
+
+def get_support_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="📞  ارتباط با پشتیبان",
+            url="https://t.me/ItzJustEren"
+        )
+    )
+    
+    builder.row(
+        InlineKeyboardButton(
+            text="🔙  بازگشت به منوی اصلی",
+            callback_data="main_menu"
+        )
+    )
+    
+    return builder.as_markup()
 
 # ── Start ────────────────────────────────────────────────────────────────────
 @dp.message(Command("start"))
@@ -126,16 +230,13 @@ async def cmd_start(message: types.Message, state: FSMContext):
     await show_main_menu(message)
 
 async def show_main_menu(message: types.Message):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 خرید محصول", callback_data="buy")],
-        [InlineKeyboardButton(text="📋 سفارشات من", callback_data="my_orders")],
-    ])
-    if is_admin(message.from_user.id):
-        keyboard.inline_keyboard.append([InlineKeyboardButton(text="⚙️ پنل ادمین", callback_data="admin_panel")])
+    keyboard = get_main_menu_keyboard(is_admin(message.from_user.id))
     await message.answer(
-        "👋 به ربات فروش Tk-Ui خوش آمدید.\n"
-        "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
-        reply_markup=keyboard
+        "👋 **به ربات فروش Tk-Ui خوش آمدید!**\n\n"
+        "✨ فروش کانفیگ‌های اختصاصی با بهترین کیفیت\n\n"
+        "📌 لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
 
 @dp.callback_query(F.data == "main_menu")
@@ -158,7 +259,7 @@ async def callback_check_membership(callback: CallbackQuery):
     else:
         await callback.answer("❌ هنوز عضو نشده‌اید.", show_alert=True)
 
-# ── Buy ──────────────────────────────────────────────────────────────────────
+# ── خرید ──────────────────────────────────────────────────────────────────────
 @dp.callback_query(F.data == "buy")
 async def callback_buy(callback: CallbackQuery):
     if not PRODUCTS:
@@ -166,9 +267,21 @@ async def callback_buy(callback: CallbackQuery):
         return
     await callback.answer()
     await callback.message.edit_text(
-        "🛒 لیست محصولات:\n\nلطفاً یکی را انتخاب کنید:",
-        reply_markup=get_products_keyboard()
+        "🛒 **لیست محصولات:**\n\nلطفاً یکی را انتخاب کنید:",
+        reply_markup=get_products_keyboard(),
+        parse_mode="Markdown"
     )
+
+def get_products_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for pid, prod in PRODUCTS.items():
+        builder.button(
+            text=f"{prod['name']} — {prod['volume_gb']}GB / {prod['duration_days']} روز — {prod['price']:,} تومان",
+            callback_data=f"buy:{pid}"
+        )
+    builder.adjust(1)
+    builder.row(InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="main_menu"))
+    return builder.as_markup()
 
 @dp.callback_query(F.data.startswith("buy:"))
 async def callback_product_select(callback: CallbackQuery, state: FSMContext):
@@ -180,7 +293,7 @@ async def callback_product_select(callback: CallbackQuery, state: FSMContext):
     await state.update_data(product_id=product_id)
 
     text = (
-        f"📦 <b>{product['name']}</b>\n"
+        f"📦 **{product['name']}**\n"
         f"📊 حجم: {product['volume_gb']} GB\n"
         f"⏳ مدت: {product['duration_days']} روز\n"
         f"🚀 سرعت: {product['speed_mbps']} Mbps {'(نامحدود)' if product['speed_mbps'] == 0 else ''}\n"
@@ -191,7 +304,7 @@ async def callback_product_select(callback: CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="💳 خرید", callback_data=f"confirm_buy:{product_id}")],
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="buy")]
     ])
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("confirm_buy:"))
@@ -201,6 +314,10 @@ async def callback_confirm_buy(callback: CallbackQuery, state: FSMContext):
     if not product:
         await callback.answer("❌ محصول یافت نشد.", show_alert=True)
         return
+
+    # تولید کد کاربری
+    user_code = generate_user_code()
+    USER_CODES[callback.from_user.id] = {"code": user_code, "created_at": datetime.now()}
 
     order_id = secrets.token_hex(8).upper()
     order = {
@@ -215,32 +332,45 @@ async def callback_confirm_buy(callback: CallbackQuery, state: FSMContext):
         "created_at": datetime.now().isoformat(),
         "config_uuid": None,
         "sub_id": None,
+        "user_code": user_code,
     }
     async with ORDERS_LOCK:
         ORDERS[order_id] = order
     asyncio.create_task(save_state())
 
+    reymit_link = REYMIT_LINKS[0] if REYMIT_LINKS else "https://reymit.ir/itzjusteren"
     payment_text = (
-        f"💳 مشتری عزیز، مبلغ <b>{product['price']:,}</b> تومان را به کارت زیر به نام <b>{CARD_OWNER_NAME}</b> واریز کنید:\n\n"
-        f"<b>{CARD_NUMBER}</b>\n\n"
-        f"⏳ توجه: شما تا <b>۱ ساعت</b> پس از این پیام مهلت دارید تا رسید را ارسال کنید.\n"
-        f"اگر بعد از ۱ ساعت حتی ۱ دقیقه دیرتر رسید را ارسال کنید، کانفیگی دریافت نخواهید کرد و مسئولیتی متوجه ما نیست."
+        f"💳 **پرداخت از طریق درگاه امن ریمیت**\n\n"
+        f"🔗 لینک پرداخت:\n"
+        f"`{reymit_link}`\n\n"
+        f"🔑 **کد کاربری شما:**\n"
+        f"`{user_code}`\n\n"
+        f"⚠️ **توجه بسیار مهم:**\n"
+        f"۱. هنگام پرداخت، نام خود را حتماً **کد کاربری** خود وارد کنید.\n"
+        f"۲. در صورت مغایرت، Tk-Ui مسئولیتی ندارد.\n"
+        f"۳. حتماً در توضیحات پرداخت، این متن را بنویسید:\n"
+        f"_خرید کانفیگ با رضایت کامل از Tk-Ui_\n\n"
+        f"📌 پس از پرداخت، تصویر رسید را به ربات ارسال کنید.\n"
+        f"⏳ مهلت پرداخت: **۱ ساعت**\n\n"
+        f"با تشکر از اعتماد شما ❤️\n"
+        f"تیم Tk-Ui"
     )
-    await callback.message.edit_text(
-        f"🛍 سفارش شما ثبت شد.\nشماره سفارش: <code>{order_id}</code>\n\n{payment_text}",
-        parse_mode="HTML"
-    )
+
+    await callback.message.edit_text(payment_text, parse_mode="Markdown")
     await state.set_state(BuyStates.waiting_receipt)
-    await state.update_data(order_id=order_id, order_time=datetime.now())
+    await state.update_data(order_id=order_id, order_time=datetime.now(), user_code=user_code, is_renew=False)
     await callback.answer()
 
-# ── Receipt ──────────────────────────────────────────────────────────────────
+# ── دریافت رسید ──────────────────────────────────────────────────────────────
 @dp.message(BuyStates.waiting_receipt, F.photo)
 async def handle_receipt(message: types.Message, state: FSMContext):
     data = await state.get_data()
     order_id = data.get("order_id")
     order_time = data.get("order_time")
+    user_code = data.get("user_code")
+    is_renew = data.get("is_renew", False)
     order = ORDERS.get(order_id)
+    
     if not order:
         await message.answer("❌ سفارش یافت نشد. لطفاً دوباره از منوی خرید اقدام کنید.")
         await state.clear()
@@ -258,7 +388,7 @@ async def handle_receipt(message: types.Message, state: FSMContext):
 
     product = PRODUCTS.get(order['product_id'])
     if product:
-        await send_order_to_admins(order_id, order['user_id'], product, message)
+        await send_order_to_admins(order_id, order['user_id'], product, user_code, message, is_renew)
 
     await message.answer(
         "✅ رسید شما دریافت شد و در انتظار تأیید ادمین است.\n"
@@ -270,7 +400,61 @@ async def handle_receipt(message: types.Message, state: FSMContext):
 async def handle_invalid_receipt(message: types.Message):
     await message.answer("❌ لطفاً تصویر رسید را به‌صورت عکس ارسال کنید.")
 
-# ── Approve/Reject ──────────────────────────────────────────────────────────
+# ── ارسال سفارش به ادمین ────────────────────────────────────────────────────
+async def send_order_to_admins(order_id: str, user_id: int, product: dict, user_code: str, receipt_msg: types.Message, is_renew: bool = False):
+    order = ORDERS.get(order_id)
+    if not order:
+        return
+    
+    user = await bot.get_chat(user_id)
+    username = user.username or "ندارد"
+    full_name = user.full_name or "کاربر"
+
+    text = (
+        f"🆕 **{('تمدید' if is_renew else 'سفارش جدید')} #{order_id}**\n\n"
+        f"👤 **کاربر:** {full_name} (@{username})\n"
+        f"🆔 **آیدی عددی:** {user_id}\n"
+        f"🔑 **کد کاربری:** `{user_code}`\n\n"
+        f"📦 **محصول:** {product['name']}\n"
+        f"📊 **حجم:** {product['volume_gb']} GB\n"
+        f"⏳ **مدت:** {product['duration_days']} روز\n"
+        f"🚀 **سرعت:** {product['speed_mbps']} Mbps\n"
+        f"💰 **قیمت:** {product['price']:,} تومان\n"
+        f"🕒 **زمان سفارش:** {order['created_at']}\n\n"
+        f"🖼 **رسید:**"
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ تایید", callback_data=f"approve:{order_id}"),
+         InlineKeyboardButton(text="❌ رد", callback_data=f"reject:{order_id}")]
+    ])
+
+    if ADMIN_GROUP_ID:
+        try:
+            await bot.send_photo(
+                chat_id=ADMIN_GROUP_ID,
+                photo=receipt_msg.photo[-1].file_id,
+                caption=text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+            return
+        except Exception as e:
+            logger.warning(f"ارسال به گروه ناموفق: {e}")
+    
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_photo(
+                chat_id=admin_id,
+                photo=receipt_msg.photo[-1].file_id,
+                caption=text,
+                reply_markup=keyboard,
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+
+# ── تایید/رد سفارش ─────────────────────────────────────────────────────────
 @dp.callback_query(F.data.startswith("approve:"))
 async def callback_approve_order(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -325,20 +509,55 @@ async def callback_approve_order(callback: CallbackQuery):
     vless_link = vless_link_for_link(link, uuid, host)
     sub_url = f"https://{host}/p/{sub['uuid_key']}"
 
+    # بررسی سطح کاربری
+    level = calculate_user_level(user_id)
+    level_bonus = ""
+    if level >= 10:
+        # پاداش سطح ۱۰: ۵ گیگ رایگان یک هفته‌ای
+        bonus_uuid, bonus_link = await make_link(
+            label=f"پاداش سطح ۱۰ - {product['name']}",
+            limit_bytes=5 * 1024 * 1024 * 1024,
+            expires_at=(datetime.now() + timedelta(days=7)).isoformat(),
+            note="پاداش سطح ۱۰",
+            protocol=DEFAULT_PROTOCOL,
+            fingerprint=DEFAULT_FINGERPRINT,
+            alpn="",
+            port=DEFAULT_PORT,
+            ip_limit=0,
+            speed_limit_bytes=0,
+        )
+        bonus_sub_password = generate_random_password(8)
+        bonus_sub_id, bonus_sub = await create_sub_group(
+            name=f"پاداش سطح ۱۰ - {product['name']}",
+            desc="پاداش ۵ گیگ یک هفته‌ای",
+            password=bonus_sub_password
+        )
+        await set_link_sub(bonus_uuid, bonus_sub_id)
+        bonus_vless = vless_link_for_link(bonus_link, bonus_uuid, host)
+        bonus_url = f"https://{host}/p/{bonus_sub['uuid_key']}"
+        level_bonus = (
+            f"\n\n🎁 **پاداش سطح ۱۰ شما!**\n"
+            f"📦 ۵ گیگ کانفیگ رایگان به مدت ۱ هفته\n"
+            f"🔗 لینک ساب پاداش: `{bonus_url}`\n"
+            f"🔑 پسورد: `{bonus_sub_password}`\n"
+            f"🔗 لینک VLESS پاداش:\n`{bonus_vless}`"
+        )
+
     success_msg = (
         f"🎉 تبریک! خرید شما با موفقیت انجام شد.\n"
         f"امیدواریم از خریدتان راضی باشید.\n"
         f"از طرف Tk-Ui ❤️\n\n"
-        f"📌 <b>لینک ساب (با پسورد):</b>\n"
-        f"<code>{sub_url}</code>\n\n"
-        f"🔑 <b>پسورد ساب:</b>\n"
-        f"<code>{sub_password}</code>\n\n"
-        f"📊 <b>مشخصات کانفیگ:</b>\n"
+        f"📌 **لینک ساب (با پسورد):**\n"
+        f"`{sub_url}`\n\n"
+        f"🔑 **پسورد ساب:**\n"
+        f"`{sub_password}`\n\n"
+        f"📊 **مشخصات کانفیگ:**\n"
         f"حجم: {product['volume_gb']} GB\n"
         f"مدت: {product['duration_days']} روز\n"
         f"سرعت: {product['speed_mbps']} Mbps {'(نامحدود)' if product['speed_mbps'] == 0 else ''}\n\n"
-        f"🔗 <b>لینک VLESS:</b>\n"
-        f"<code>{vless_link}</code>"
+        f"🔗 **لینک VLESS:**\n"
+        f"`{vless_link}`"
+        f"{level_bonus}"
     )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -349,7 +568,7 @@ async def callback_approve_order(callback: CallbackQuery):
     await bot.send_message(
         chat_id=user_id,
         text=success_msg,
-        parse_mode="HTML",
+        parse_mode="Markdown",
         reply_markup=keyboard
     )
 
@@ -381,31 +600,379 @@ async def callback_get_vless(callback: CallbackQuery):
         return
     host = get_host()
     vless = vless_link_for_link(link, uuid, host)
-    await callback.message.answer(f"🔗 کانفیگ VLESS:\n<code>{vless}</code>", parse_mode="HTML")
+    await callback.message.answer(f"🔗 کانفیگ VLESS:\n`{vless}`", parse_mode="Markdown")
     await callback.answer()
 
-# ── My Orders ──────────────────────────────────────────────────────────────
-@dp.callback_query(F.data == "my_orders")
-async def callback_my_orders(callback: CallbackQuery):
-    user_orders = [o for o in ORDERS.values() if o["user_id"] == callback.from_user.id]
+# ── اشتراک‌های من ──────────────────────────────────────────────────────────
+@dp.callback_query(F.data == "my_subscriptions")
+async def callback_my_subscriptions(callback: CallbackQuery):
+    keyboard = get_subscription_menu_keyboard()
+    await callback.message.edit_text(
+        "📂 **مدیریت اشتراک‌های شما**\n\n"
+        "لطفاً یکی از گزینه‌های زیر را انتخاب کنید:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data == "get_sub_links")
+async def callback_get_sub_links(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    user_orders = [o for o in ORDERS.values() if o["user_id"] == user_id and o["status"] == "confirmed"]
+    
     if not user_orders:
-        await callback.answer("شما هیچ سفارشی ندارید.", show_alert=True)
+        await callback.message.edit_text(
+            "❌ **شما هیچ اشتراک فعالی ندارید.**\n\n"
+            "برای خرید اشتراک، از دکمه **🛍️ خرید اشتراک جدید** استفاده کنید.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 بازگشت", callback_data="my_subscriptions")]
+            ]),
+            parse_mode="Markdown"
+        )
+        await callback.answer()
         return
-    text = "📋 لیست سفارشات شما:\n\n"
-    for o in user_orders[-5:]:
-        status_map = {
-            "pending": "⏳ در انتظار تأیید",
-            "confirmed": "✅ تأیید شده",
-            "rejected": "❌ رد شده",
-            "delivered": "📦 تحویل داده شده"
-        }
-        text += f"#{o['order_id']} — {status_map.get(o['status'], o['status'])}\n"
-    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="main_menu")]
-    ]))
+    
+    text = "🔗 **لینک‌های اشتراک شما:**\n\n"
+    for order in user_orders:
+        sub_id = order.get("sub_id")
+        if sub_id and sub_id in SUBS:
+            sub = SUBS[sub_id]
+            host = get_host()
+            sub_url = f"https://{host}/p/{sub['uuid_key']}"
+            product = PRODUCTS.get(order["product_id"])
+            text += f"📦 **{product['name'] if product else 'اشتراک'}**\n"
+            text += f"🔑 `{sub_url}`\n"
+            text += f"📊 حجم: {order['volume']}GB | ⏳ مدت: {order['duration']} روز\n\n"
+    
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 بازگشت", callback_data="my_subscriptions")]
+        ]),
+        parse_mode="Markdown"
+    )
     await callback.answer()
 
-# ── Admin Panel ─────────────────────────────────────────────────────────────
+@dp.callback_query(F.data == "renew_subscription")
+async def callback_renew_subscription(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    keyboard = get_renew_subscription_keyboard(user_id)
+    await callback.message.edit_text(
+        "🔄 **تمدید اشتراک**\n\n"
+        "لطفاً اشتراک مورد نظر برای تمدید را انتخاب کنید:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("renew:"))
+async def callback_renew_confirm(callback: CallbackQuery, state: FSMContext):
+    order_id = callback.data.split(":")[1]
+    order = ORDERS.get(order_id)
+    if not order:
+        await callback.answer("❌ اشتراک یافت نشد.", show_alert=True)
+        return
+    
+    product = PRODUCTS.get(order["product_id"])
+    if not product:
+        await callback.answer("❌ محصول یافت نشد.", show_alert=True)
+        return
+    
+    user_code = generate_user_code()
+    USER_CODES[callback.from_user.id] = {"code": user_code, "created_at": datetime.now()}
+    
+    # ایجاد سفارش تمدید جدید
+    new_order_id = secrets.token_hex(8).upper()
+    new_order = {
+        "order_id": new_order_id,
+        "user_id": callback.from_user.id,
+        "product_id": order["product_id"],
+        "volume": product['volume_gb'],
+        "duration": product['duration_days'],
+        "speed": product['speed_mbps'],
+        "price": product['price'],
+        "status": "pending",
+        "created_at": datetime.now().isoformat(),
+        "config_uuid": None,
+        "sub_id": None,
+        "user_code": user_code,
+        "renew_of": order_id,
+    }
+    async with ORDERS_LOCK:
+        ORDERS[new_order_id] = new_order
+    asyncio.create_task(save_state())
+
+    reymit_link = REYMIT_LINKS[0] if REYMIT_LINKS else "https://reymit.ir/itzjusteren"
+    text = (
+        f"🔄 **تمدید اشتراک**\n\n"
+        f"📦 **محصول:** {product['name']}\n"
+        f"📊 **حجم:** {product['volume_gb']} GB\n"
+        f"⏳ **مدت:** {product['duration_days']} روز\n"
+        f"💰 **قیمت:** {product['price']:,} تومان\n\n"
+        f"🔑 **کد کاربری شما:**\n"
+        f"`{user_code}`\n\n"
+        f"💳 **پرداخت از طریق ریمیت:**\n"
+        f"`{reymit_link}`\n\n"
+        f"⚠️ هنگام پرداخت، نام خود را **کد کاربری** وارد کنید.\n"
+        f"پس از پرداخت، رسید را برای ربات ارسال کنید."
+    )
+    
+    await callback.message.edit_text(text, parse_mode="Markdown")
+    await state.set_state(BuyStates.waiting_receipt)
+    await state.update_data(order_id=new_order_id, order_time=datetime.now(), user_code=user_code, is_renew=True)
+    await callback.answer()
+
+# ── آموزش‌ها ──────────────────────────────────────────────────────────────
+@dp.callback_query(F.data == "tutorials")
+async def callback_tutorials(callback: CallbackQuery):
+    channel = TUTORIAL_CHANNEL or "@TaaKaaOrg"
+    await callback.message.edit_text(
+        f"💡 **آموزش‌های Tk-Ui**\n\n"
+        f"📌 برای مشاهده آموزش‌ها، به کانال زیر مراجعه کنید:\n"
+        f"👉 {channel}\n\n"
+        f"📹 آموزش تصویری استفاده از ربات:\n"
+        f"[لینک ویدیو]",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")]
+        ]),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+# ── حساب کاربری ────────────────────────────────────────────────────────────
+@dp.callback_query(F.data == "my_account")
+async def callback_my_account(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    user_orders = [o for o in ORDERS.values() if o["user_id"] == user_id]
+    total_purchases = len([o for o in user_orders if o["status"] == "confirmed"])
+    level = calculate_user_level(user_id)
+    
+    text = (
+        f"👤 **حساب کاربری شما**\n\n"
+        f"🆔 **آیدی:** {user_id}\n"
+        f"📊 **تعداد خرید:** {total_purchases}\n"
+        f"⭐ **سطح کاربری:** {level}\n\n"
+        f"🔰 **مزایای سطح {level}:**\n"
+        f"{'🎁 دریافت ۵ گیگ کانفیگ رایگان یک هفته‌ای!' if level >= 10 else 'به خرید ادامه دهید تا به سطح ۱۰ برسید!'}"
+    )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    await callback.answer()
+
+# ── تست رایگان ────────────────────────────────────────────────────────────
+@dp.callback_query(F.data == "test_service")
+async def callback_test_service(callback: CallbackQuery):
+    user_id = callback.from_user.id
+    now = datetime.now()
+    
+    test_data = TEST_USERS.get(user_id)
+    if test_data and test_data.get("last_test"):
+        days_passed = (now - test_data["last_test"]).days
+        if days_passed < 7:
+            remaining = 7 - days_passed
+            await callback.answer(
+                f"⛔ شما قبلاً کانفیگ تست خود را دریافت کرده‌اید.\n"
+                f"لطفاً {remaining} روز دیگر تلاش کنید.",
+                show_alert=True
+            )
+            return
+    
+    volume_bytes = 50 * 1024 * 1024
+    expires_at = (now + timedelta(days=1)).isoformat()
+    
+    uuid, link = await make_link(
+        label=f"تست - {callback.from_user.full_name}",
+        limit_bytes=volume_bytes,
+        expires_at=expires_at,
+        note="کانفیگ تست رایگان",
+        protocol=DEFAULT_PROTOCOL,
+        fingerprint=DEFAULT_FINGERPRINT,
+        alpn="",
+        port=DEFAULT_PORT,
+        ip_limit=0,
+        speed_limit_bytes=0,
+    )
+    
+    TEST_USERS[user_id] = {"last_test": now, "used": True}
+    asyncio.create_task(save_state())
+    
+    host = get_host()
+    vless_link = vless_link_for_link(link, uuid, host)
+    sub_url = f"https://{host}/sub/{uuid}"
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={quote(vless_link)}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📱 دریافت QR Code", callback_data=f"show_qr:{uuid}")],
+        [InlineKeyboardButton(text="🔗 دریافت کانفیگ VLESS", callback_data=f"get_vless:{uuid}")],
+        [InlineKeyboardButton(text="📥 دریافت لینک ساب", url=sub_url)]
+    ])
+    
+    await callback.message.edit_text(
+        f"🧪 **کانفیگ تست شما آماده شد!**\n\n"
+        f"👤 کاربر: {callback.from_user.full_name} (ID: {user_id})\n"
+        f"⏳ مدت زمان: ۱ روز\n"
+        f"📊 حجم تست: ۵۰ مگابایت\n"
+        f"🔰 سرویس: تست Tk-Ui\n\n"
+        f"📌 این کانفیگ به‌صورت رایگان در اختیار شما قرار گرفته.\n"
+        f"امیدواریم از خدمات ما راضی باشید! ❤️\n\n"
+        f"⚠️ فقط هفته‌ای یک بار می‌توانید تست دریافت کنید.",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+@dp.callback_query(F.data.startswith("show_qr:"))
+async def callback_show_qr(callback: CallbackQuery):
+    uuid = callback.data.split(":")[1]
+    link = LINKS.get(uuid)
+    if not link or not is_link_allowed(link):
+        await callback.answer("❌ کانفیگ یافت نشد.", show_alert=True)
+        return
+    host = get_host()
+    vless = vless_link_for_link(link, uuid, host)
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={quote(vless)}"
+    
+    await callback.message.answer_photo(
+        photo=qr_url,
+        caption=f"📱 **QR Code کانفیگ**\n\n🔗 لینک VLESS:\n`{vless}`",
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+# ── پشتیبانی ──────────────────────────────────────────────────────────────
+@dp.callback_query(F.data == "support")
+async def callback_support(callback: CallbackQuery):
+    keyboard = get_support_keyboard()
+    await callback.message.edit_text(
+        "📞 **پشتیبانی Tk-Ui**\n\n"
+        "برای ارتباط با پشتیبان، روی دکمه زیر کلیک کنید:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+# ── ارسال بازخورد ─────────────────────────────────────────────────────────
+@dp.callback_query(F.data == "send_feedback")
+async def callback_send_feedback(callback: CallbackQuery, state: FSMContext):
+    await callback.message.edit_text(
+        "✍️ **ارسال بازخورد**\n\n"
+        "لطفاً متن بازخورد خود را ارسال کنید.\n"
+        "پس از تأیید توسط ادمین، در بخش بازخورد کاربران نمایش داده می‌شود.",
+        parse_mode="Markdown"
+    )
+    await state.set_state(FeedbackStates.waiting_feedback)
+    await callback.answer()
+
+@dp.message(StateFilter(FeedbackStates.waiting_feedback))
+async def handle_feedback(message: types.Message, state: FSMContext):
+    feedback_text = message.text
+    user_id = message.from_user.id
+    username = message.from_user.username or "کاربر"
+    
+    feedback_data = {
+        "id": secrets.token_hex(8),
+        "user_id": user_id,
+        "username": username,
+        "text": feedback_text,
+        "created_at": datetime.now().isoformat(),
+        "approved": False
+    }
+    FEEDBACKS.append(feedback_data)
+    asyncio.create_task(save_state())
+    
+    # ارسال به ادمین برای تایید
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(
+                chat_id=admin_id,
+                text=f"📝 **بازخورد جدید**\n\n"
+                     f"👤 کاربر: {message.from_user.full_name} (@{username}) [ID: {user_id}]\n"
+                     f"📝 متن:\n{feedback_text}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ تایید", callback_data=f"approve_fb:{feedback_data['id']}"),
+                     InlineKeyboardButton(text="❌ رد", callback_data=f"reject_fb:{feedback_data['id']}")]
+                ]),
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+    
+    await message.answer(
+        "✅ بازخورد شما با موفقیت ثبت شد.\n"
+        "پس از تأیید توسط ادمین، در بخش بازخورد کاربران نمایش داده می‌شود.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="main_menu")]
+        ])
+    )
+    await state.clear()
+
+@dp.callback_query(F.data.startswith("approve_fb:"))
+async def callback_approve_feedback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
+        return
+    feedback_id = callback.data.split(":")[1]
+    for fb in FEEDBACKS:
+        if fb.get("id") == feedback_id:
+            fb["approved"] = True
+            asyncio.create_task(save_state())
+            await callback.message.edit_text("✅ بازخورد تایید شد.")
+            await callback.answer()
+            return
+    await callback.answer("❌ بازخورد یافت نشد.", show_alert=True)
+
+@dp.callback_query(F.data.startswith("reject_fb:"))
+async def callback_reject_feedback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
+        return
+    feedback_id = callback.data.split(":")[1]
+    for i, fb in enumerate(FEEDBACKS):
+        if fb.get("id") == feedback_id:
+            FEEDBACKS.pop(i)
+            asyncio.create_task(save_state())
+            await callback.message.edit_text("❌ بازخورد رد شد.")
+            await callback.answer()
+            return
+    await callback.answer("❌ بازخورد یافت نشد.", show_alert=True)
+
+# ── بازخورد کاربران ──────────────────────────────────────────────────────
+@dp.callback_query(F.data == "view_feedbacks")
+async def callback_view_feedbacks(callback: CallbackQuery):
+    approved = [fb for fb in FEEDBACKS if fb.get("approved", False)]
+    if not approved:
+        await callback.message.edit_text(
+            "💬 **بازخورد کاربران**\n\n"
+            "هنوز بازخوردی ثبت نشده است.\n"
+            "اولین نفری باشید که بازخورد خود را ارسال می‌کند! ✍️",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")]
+            ]),
+            parse_mode="Markdown"
+        )
+        await callback.answer()
+        return
+    
+    text = "💬 **بازخورد کاربران**\n\n"
+    for fb in approved[-10:]:
+        text += f"👤 {fb.get('username', 'کاربر')}:\n"
+        text += f"📝 {fb.get('text')}\n"
+        text += f"🕒 {fb.get('created_at')[:10]}\n\n"
+    
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 بازگشت", callback_data="main_menu")]
+        ]),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+# ── پنل ادمین ─────────────────────────────────────────────────────────────
 @dp.callback_query(F.data == "admin_panel")
 async def callback_admin_panel(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
@@ -419,8 +986,11 @@ async def callback_admin_panel(callback: CallbackQuery):
         [InlineKeyboardButton(text="📊 آمار", callback_data="admin_stats")],
         [InlineKeyboardButton(text="🔙 منوی اصلی", callback_data="main_menu")]
     ])
-    await callback.message.edit_text("⚙️ پنل مدیریت ربات:", reply_markup=keyboard)
+    await callback.message.edit_text("⚙️ **پنل مدیریت ربات:**", reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
+
+# ── بقیه هندلرهای ادمین (مدیریت محصولات، ادمین‌ها، تنظیمات، آمار، سفارشات) ──
+# این بخش‌ها مثل قبل هستن و فقط نام StateFilter اصلاح شده
 
 @dp.callback_query(F.data == "admin_products")
 async def callback_admin_products(callback: CallbackQuery):
@@ -433,7 +1003,7 @@ async def callback_admin_products(callback: CallbackQuery):
     if PRODUCTS:
         keyboard.inline_keyboard.append([InlineKeyboardButton(text="🗑 حذف محصول", callback_data="admin_delete_product")])
     keyboard.inline_keyboard.append([InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_panel")])
-    await callback.message.edit_text("📦 مدیریت محصولات:", reply_markup=keyboard)
+    await callback.message.edit_text("📦 **مدیریت محصولات:**", reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
 @dp.callback_query(F.data == "admin_add_product")
@@ -445,7 +1015,8 @@ async def callback_add_product(callback: CallbackQuery, state: FSMContext):
         "لطفاً اطلاعات محصول جدید را به صورت زیر ارسال کنید:\n\n"
         "`نام محصول | حجم(GB) | مدت(روز) | سرعت(Mbps)`\n\n"
         "مثال: `کانفیگ استاندارد | 50 | 30 | 100`\n\n"
-        "⚠️ قیمت به‌صورت خودکار بر اساس قیمت هر گیگ محاسبه می‌شود."
+        "⚠️ قیمت به‌صورت خودکار بر اساس قیمت هر گیگ محاسبه می‌شود.",
+        parse_mode="Markdown"
     )
     await state.set_state("waiting_product_data")
     await callback.answer()
@@ -524,9 +1095,10 @@ async def callback_admin_admins(callback: CallbackQuery):
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_panel")]
     ])
     await callback.message.edit_text(
-        f"👥 لیست ادمین‌ها:\n\n" + "\n".join(f"🆔 {uid}" for uid in ADMIN_IDS) +
+        f"👥 **لیست ادمین‌ها:**\n\n" + "\n".join(f"🆔 {uid}" for uid in ADMIN_IDS) +
         f"\n👑 اونر: {OWNER_ID}",
-        reply_markup=keyboard
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
     await callback.answer()
 
@@ -567,12 +1139,12 @@ async def callback_admin_settings(callback: CallbackQuery):
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_panel")]
     ])
     await callback.message.edit_text(
-        f"⚙️ تنظیمات\n\n"
-        f"💳 شماره کارت فعلی: <code>{CARD_NUMBER}</code>\n"
-        f"👤 نام صاحب کارت: <b>{CARD_OWNER_NAME}</b>\n"
-        f"💰 قیمت هر گیگ: <b>{PRICE_PER_GB} هزار تومان</b>",
+        f"⚙️ **تنظیمات**\n\n"
+        f"💳 شماره کارت فعلی: `{CARD_NUMBER}`\n"
+        f"👤 نام صاحب کارت: **{CARD_OWNER_NAME}**\n"
+        f"💰 قیمت هر گیگ: **{PRICE_PER_GB} هزار تومان**",
         reply_markup=keyboard,
-        parse_mode="HTML"
+        parse_mode="Markdown"
     )
     await callback.answer()
 
@@ -584,7 +1156,8 @@ async def callback_change_card(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "لطفاً اطلاعات جدید کارت را به صورت زیر ارسال کنید:\n\n"
         "`شماره کارت | نام صاحب کارت`\n\n"
-        "مثال: `6037-9910-1234-5678 | علی محمدی`"
+        "مثال: `6037-9910-1234-5678 | علی محمدی`",
+        parse_mode="Markdown"
     )
     await state.set_state("waiting_card_data")
     await callback.answer()
@@ -620,8 +1193,9 @@ async def callback_change_price(callback: CallbackQuery, state: FSMContext):
         await callback.answer("⛔ دسترسی ندارید.", show_alert=True)
         return
     await callback.message.edit_text(
-        "💰 لطفاً قیمت جدید هر گیگ را به <b>هزار تومان</b> وارد کنید:\n\n"
-        "مثال: برای قیمت ۶ هزار تومان به ازای هر گیگ، عدد <code>6</code> را ارسال کنید."
+        "💰 لطفاً قیمت جدید هر گیگ را به **هزار تومان** وارد کنید:\n\n"
+        "مثال: برای قیمت ۶ هزار تومان به ازای هر گیگ، عدد `6` را ارسال کنید.",
+        parse_mode="Markdown"
     )
     await state.set_state("waiting_price")
     await callback.answer()
@@ -640,7 +1214,7 @@ async def handle_price(message: types.Message, state: FSMContext):
         os.environ["PRICE_PER_GB"] = str(price)
         asyncio.create_task(save_state())
         log_activity("settings", f"قیمت هر گیگ تغییر کرد: {price} هزار تومان", "ok")
-        await message.answer(f"✅ قیمت هر گیگ به <b>{price} هزار تومان</b> تغییر یافت.\n"
+        await message.answer(f"✅ قیمت هر گیگ به **{price} هزار تومان** تغییر یافت.\n"
                              f"محصولات جدید با قیمت جدید محاسبه می‌شوند.")
     except Exception as e:
         await message.answer(f"❌ خطا: {e}\nلطفاً یک عدد معتبر وارد کنید.")
@@ -655,7 +1229,7 @@ async def callback_admin_stats(callback: CallbackQuery):
     pending_orders = len([o for o in ORDERS.values() if o["status"] == "pending"])
     confirmed_orders = len([o for o in ORDERS.values() if o["status"] == "confirmed"])
     text = (
-        f"📊 آمار ربات:\n\n"
+        f"📊 **آمار ربات:**\n\n"
         f"📦 کل سفارشات: {total_orders}\n"
         f"⏳ در انتظار تأیید: {pending_orders}\n"
         f"✅ تأیید شده: {confirmed_orders}\n"
@@ -666,7 +1240,7 @@ async def callback_admin_stats(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_panel")]
     ])
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("admin_orders:"))
@@ -692,7 +1266,7 @@ async def callback_admin_orders(callback: CallbackQuery):
     if end < total:
         builder.button(text="بعدی ▶", callback_data=f"admin_orders:{page+1}")
     builder.row(InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_panel"))
-    await callback.message.edit_text("📋 سفارشات در انتظار تایید:", reply_markup=builder.as_markup())
+    await callback.message.edit_text("📋 **سفارشات در انتظار تایید:**", reply_markup=builder.as_markup(), parse_mode="Markdown")
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("admin_order_view:"))
@@ -704,7 +1278,7 @@ async def callback_admin_order_view(callback: CallbackQuery):
         return
     product = PRODUCTS.get(order['product_id'])
     text = (
-        f"🧾 سفارش #{order_id}\n"
+        f"🧾 **سفارش #{order_id}**\n\n"
         f"👤 کاربر: {order['user_id']}\n"
         f"📦 محصول: {product['name'] if product else 'نامشخص'}\n"
         f"📊 حجم: {order['volume']} GB\n"
@@ -719,7 +1293,7 @@ async def callback_admin_order_view(callback: CallbackQuery):
          InlineKeyboardButton(text="❌ رد", callback_data=f"reject:{order_id}")],
         [InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_orders:0")]
     ])
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
 # ── Start/Stop ──────────────────────────────────────────────────────────────
