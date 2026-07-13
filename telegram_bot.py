@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -150,7 +150,8 @@ async def callback_main_menu(callback: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(F.data == "check_membership")
 async def callback_check_membership(callback: CallbackQuery):
-    if await check_channel_membership(callback.from_user.id):
+    user_id = callback.from_user.id
+    if await check_channel_membership(user_id):
         await callback.answer("✅ عضویت تأیید شد!", show_alert=True)
         await show_main_menu(callback.message)
         await callback.message.delete()
@@ -219,7 +220,6 @@ async def callback_confirm_buy(callback: CallbackQuery, state: FSMContext):
         ORDERS[order_id] = order
     asyncio.create_task(save_state())
 
-    # پیام پرداخت با نام صاحب کارت و مهلت ۱ ساعته
     payment_text = (
         f"💳 مشتری عزیز، مبلغ <b>{product['price']:,}</b> تومان را به کارت زیر به نام <b>{CARD_OWNER_NAME}</b> واریز کنید:\n\n"
         f"<b>{CARD_NUMBER}</b>\n\n"
@@ -246,7 +246,6 @@ async def handle_receipt(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    # بررسی مهلت ۱ ساعته
     if order_time:
         elapsed = (datetime.now() - order_time).total_seconds()
         if elapsed > 3600:
@@ -326,7 +325,6 @@ async def callback_approve_order(callback: CallbackQuery):
     vless_link = vless_link_for_link(link, uuid, host)
     sub_url = f"https://{host}/p/{sub['uuid_key']}"
 
-    # پیام موفقیت به کاربر
     success_msg = (
         f"🎉 تبریک! خرید شما با موفقیت انجام شد.\n"
         f"امیدواریم از خریدتان راضی باشید.\n"
