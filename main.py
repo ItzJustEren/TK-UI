@@ -63,7 +63,7 @@ app.add_middleware(
 )
 
 async def load_state():
-    global LINKS, AUTH, SUBS, PRODUCTS, ORDERS, CARD_NUMBER, CARD_OWNER_NAME, PRICE_PER_GB, ADMIN_IDS, OWNER_ID
+    global LINKS, AUTH, SUBS, PRODUCTS, ORDERS, CARD_NUMBER, CARD_OWNER_NAME, PRICE_PER_GB, ADMIN_IDS, OWNER_ID, TEST_USERS, USER_CODES, REYMIT_LINKS, FEEDBACKS, TUTORIAL_CHANNEL
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         if DATA_FILE.exists():
@@ -74,6 +74,11 @@ async def load_state():
             SUBS.update(data.get("subs", {}))
             PRODUCTS.update(data.get("products", {}))
             ORDERS.update(data.get("orders", {}))
+            TEST_USERS.update(data.get("test_users", {}))
+            USER_CODES.update(data.get("user_codes", {}))
+            REYMIT_LINKS = data.get("reymit_links", ["https://reymit.ir/itzjusteren"])
+            FEEDBACKS = data.get("feedbacks", [])
+            TUTORIAL_CHANNEL = data.get("tutorial_channel", "@TaaKaaOrg")
             if "password_hash" in data:
                 AUTH["password_hash"] = data["password_hash"]
             if "card_number" in data:
@@ -99,6 +104,11 @@ async def save_state():
                 "subs": dict(SUBS),
                 "products": dict(PRODUCTS),
                 "orders": dict(ORDERS),
+                "test_users": dict(TEST_USERS),
+                "user_codes": dict(USER_CODES),
+                "reymit_links": REYMIT_LINKS,
+                "feedbacks": FEEDBACKS,
+                "tutorial_channel": TUTORIAL_CHANNEL,
                 "password_hash": AUTH["password_hash"],
                 "card_number": CARD_NUMBER,
                 "card_owner_name": CARD_OWNER_NAME,
@@ -137,9 +147,17 @@ ORDERS: dict = {}
 ORDERS_LOCK = asyncio.Lock()
 CARD_NUMBER = os.environ.get("CARD_NUMBER", "6037-9910-1234-5678")
 CARD_OWNER_NAME = os.environ.get("CARD_OWNER_NAME", "نام صاحب کارت")
-PRICE_PER_GB = float(os.environ.get("PRICE_PER_GB", "6"))  # قیمت هر گیگ به هزار تومان
+PRICE_PER_GB = float(os.environ.get("PRICE_PER_GB", "6"))
 ADMIN_IDS = set()
 OWNER_ID = None
+
+# =====新增 برای ریمیت، تست، بازخورد و سطح‌بندی =====
+TEST_USERS: dict = {}  # user_id -> {"last_test": datetime, "used": bool}
+USER_CODES: dict = {}  # user_id -> {"code": str, "created_at": datetime}
+REYMIT_LINKS: list = ["https://reymit.ir/itzjusteren"]
+FEEDBACKS: list = []   # لیست بازخوردهای تایید شده
+TUTORIAL_CHANNEL: str = "@TaaKaaOrg"
+ADMIN_GROUP_ID = int(os.environ.get("ADMIN_GROUP_ID", 0)) or None
 
 PROTOCOLS = ("vless-ws", "xhttp-packet-up", "xhttp-stream-up", "xhttp-stream-one")
 DEFAULT_PROTOCOL = "vless-ws"
@@ -154,6 +172,24 @@ DEFAULT_ALPN_BY_PROTOCOL = {
 DEFAULT_PORT = 443
 MIN_PORT, MAX_PORT = 1, 65535
 DEFAULT_SPEED_LIMIT = 0
+
+def generate_user_code() -> str:
+    import string
+    return ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+
+def calculate_user_level(user_id: int) -> int:
+    """محاسبه سطح کاربری بر اساس تعداد خریدهای تایید شده"""
+    confirmed_orders = [o for o in ORDERS.values() if o["user_id"] == user_id and o["status"] == "confirmed"]
+    total_purchases = len(confirmed_orders)
+    if total_purchases >= 10:
+        return 10
+    elif total_purchases >= 5:
+        return 5
+    elif total_purchases >= 3:
+        return 3
+    elif total_purchases >= 1:
+        return 1
+    return 0
 
 def log_activity(kind: str, message: str, level: str = "info"):
     activity_logs.append({
@@ -1033,6 +1069,80 @@ async def set_card_settings(request: Request, _=Depends(require_auth)):
     log_activity("settings", f"اطلاعات کارت تغییر کرد: {new_card} - {CARD_OWNER_NAME}", "ok")
     return {"ok": True}
 
+@app.get("/api/settings/reymit")
+async def get_reymit_links(_=Depends(require_auth)):
+    return {"links": REYMIT_LINKS}
+
+@app.post("/api/settings/reymit")
+async def set_reymit_links(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    links = body.get("links", [])
+    if not links or not isinstance(links, list):
+        raise HTTPException(400, "لینک‌ها باید به‌صورت لیست باشند")
+    global REYMIT_LINKS
+    REYMIT_LINKS = [l.strip() for l in links if l.strip()]
+    asyncio.create_task(save_state())
+    log_activity("settings", f"لینک‌های ریمیت به‌روزرسانی شد: {REYMIT_LINKS}", "ok")
+    return {"ok": True}
+
+@app.get("/api/settings/tutorial")
+async def get_tutorial_channel(_=Depends(require_auth)):
+    return {"channel": TUTORIAL_CHANNEL}
+
+@app.post("/api/settings/tutorial")
+async def set_tutorial_channel(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    channel = body.get("channel", "").strip()
+    if not channel:
+        raise HTTPException(400, "کانال نمی‌تواند خالی باشد")
+    if not channel.startswith("@"):
+        channel = "@" + channel
+    global TUTORIAL_CHANNEL
+    TUTORIAL_CHANNEL = channel
+    asyncio.create_task(save_state())
+    log_activity("settings", f"کانال آموزش به‌روزرسانی شد: {TUTORIAL_CHANNEL}", "ok")
+    return {"ok": True}
+
+@app.get("/api/feedbacks")
+async def get_feedbacks(_=Depends(require_auth)):
+    return {"feedbacks": FEEDBACKS}
+
+@app.post("/api/feedbacks")
+async def add_feedback(request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    text = body.get("text", "").strip()
+    user_id = body.get("user_id")
+    username = body.get("username", "کاربر")
+    if not text:
+        raise HTTPException(400, "متن بازخورد نمی‌تواند خالی باشد")
+    feedback = {
+        "id": secrets.token_hex(8),
+        "user_id": user_id,
+        "username": username,
+        "text": text,
+        "created_at": datetime.now().isoformat(),
+        "approved": body.get("approved", False)
+    }
+    if feedback["approved"]:
+        FEEDBACKS.append(feedback)
+    else:
+        FEEDBACKS.append(feedback)
+    asyncio.create_task(save_state())
+    log_activity("feedback", f"بازخورد جدید از {username}", "info")
+    return {"ok": True, "feedback": feedback}
+
+@app.patch("/api/feedbacks/{feedback_id}")
+async def approve_feedback(feedback_id: str, request: Request, _=Depends(require_auth)):
+    body = await request.json()
+    approved = body.get("approved", False)
+    for fb in FEEDBACKS:
+        if fb.get("id") == feedback_id:
+            fb["approved"] = approved
+            asyncio.create_task(save_state())
+            log_activity("feedback", f"بازخورد {feedback_id} {'تایید' if approved else 'رد'} شد", "ok" if approved else "warn")
+            return {"ok": True}
+    raise HTTPException(404, "بازخورد یافت نشد")
+
 @app.post("/api/products")
 async def create_product(request: Request, _=Depends(require_auth)):
     body = await request.json()
@@ -1047,7 +1157,7 @@ async def create_product(request: Request, _=Depends(require_auth)):
         raise HTTPException(400, "مقادیر عددی نامعتبر")
     if volume_gb <= 0 or duration_days <= 0:
         raise HTTPException(400, "حجم و مدت باید مثبت باشند")
-    price = volume_gb * PRICE_PER_GB  # قیمت بر اساس حجم و قیمت هر گیگ
+    price = volume_gb * PRICE_PER_GB
     product_id = secrets.token_hex(8)
     async with PRODUCTS_LOCK:
         PRODUCTS[product_id] = {
